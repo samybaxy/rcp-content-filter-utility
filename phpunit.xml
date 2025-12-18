@@ -10,7 +10,8 @@
     verbose="true">
     <testsuites>
         <testsuite name="RCP Content Filter Utility Test Suite">
-            <directory>./tests/</directory>
+            <directory suffix=".php">./tests/</directory>
+            <exclude>./tests/bootstrap.php</exclude>
         </testsuite>
     </testsuites>
     <filter>
