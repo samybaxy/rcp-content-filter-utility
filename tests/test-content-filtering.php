@@ -42,10 +42,13 @@ class Test_Content_Filtering extends WP_UnitTestCase {
 		$plugin = RCP_Content_Filter_Utility::get_instance();
 
 		// Save current setting
-		$original_setting = get_option( 'rcf_filter_post_types', array() );
+		$original_setting = get_option( 'rcf_settings', array() );
 
-		// Set post types to filter
-		update_option( 'rcf_filter_post_types', array( 'post' => 1 ) );
+		// Set post types to filter - use rcf_settings option with enabled_post_types key
+		update_option( 'rcf_settings', array( 'enabled_post_types' => array( 'post' ) ) );
+
+		// Re-initialize plugin to load new settings
+		$plugin->init();
 
 		// Create reflection to access private method
 		$reflection = new ReflectionClass( $plugin );
@@ -57,7 +60,7 @@ class Test_Content_Filtering extends WP_UnitTestCase {
 		$this->assertFalse( $method->invoke( $plugin, 'page' ) );
 
 		// Restore original setting
-		update_option( 'rcf_filter_post_types', $original_setting );
+		update_option( 'rcf_settings', $original_setting );
 	}
 
 	/**
@@ -66,11 +69,19 @@ class Test_Content_Filtering extends WP_UnitTestCase {
 	public function test_adjust_query_for_restrictions() {
 		$plugin = RCP_Content_Filter_Utility::get_instance();
 
-		// Create a test query
+		// Enable post filtering
+		update_option( 'rcf_settings', array( 'enabled_post_types' => array( 'post' ) ) );
+		$plugin->init(); // Reload settings
+
+		// Create a test query with archive flag set
 		$query = new WP_Query( array(
 			'post_type' => 'post',
 			'posts_per_page' => 10,
 		) );
+
+		// Set query flags to simulate an archive page
+		$query->is_archive = true;
+		$query->is_admin = false;
 
 		// Get original posts_per_page
 		$original_ppp = $query->get( 'posts_per_page' );
@@ -83,6 +94,9 @@ class Test_Content_Filtering extends WP_UnitTestCase {
 
 		// Should be adjusted to 3x original
 		$this->assertEquals( $original_ppp * 3, $query->get( 'posts_per_page' ) );
+
+		// Clean up
+		delete_option( 'rcf_settings' );
 	}
 
 	/**

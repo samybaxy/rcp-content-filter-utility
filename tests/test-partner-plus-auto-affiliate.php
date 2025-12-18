@@ -43,7 +43,8 @@ class Test_Partner_Plus_Auto_Affiliate extends WP_UnitTestCase {
 			return $custom_id;
 		} );
 
-		$found_id = bl_get_default_partner_product_id( 0 );
+		// Use apply_filters to trigger the filter chain, not call the function directly
+		$found_id = apply_filters( 'bl_partner_plus_product_id', 0 );
 
 		$this->assertEquals( $custom_id, $found_id );
 

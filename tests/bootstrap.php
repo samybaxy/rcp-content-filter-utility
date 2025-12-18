@@ -84,31 +84,97 @@ if ( ! function_exists( 'trailingslashit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_parse_args' ) ) {
+	function wp_parse_args( $args, $defaults = array() ) {
+		if ( is_object( $args ) ) {
+			$parsed_args = get_object_vars( $args );
+		} elseif ( is_array( $args ) ) {
+			$parsed_args =& $args;
+		} else {
+			parse_str( $args, $parsed_args );
+		}
+
+		if ( is_array( $defaults ) && $defaults ) {
+			return array_merge( $defaults, $parsed_args );
+		}
+		return $parsed_args;
+	}
+}
+
 if ( ! function_exists( 'untrailingslashit' ) ) {
 	function untrailingslashit( $string ) {
 		return rtrim( $string, '/\\' );
 	}
 }
+// Hook tracking for tests
+global $_test_hooks;
+$_test_hooks = array(
+	'actions' => array(),
+	'filters' => array()
+);
+
 if ( ! function_exists( 'add_action' ) ) {
 	function add_action( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		global $_test_hooks;
+		if ( ! isset( $_test_hooks['actions'][ $hook ] ) ) {
+			$_test_hooks['actions'][ $hook ] = array();
+		}
+		$_test_hooks['actions'][ $hook ][] = array(
+			'callback' => $callback,
+			'priority' => $priority,
+			'accepted_args' => $accepted_args
+		);
 		return true;
 	}
 }
 
 if ( ! function_exists( 'add_filter' ) ) {
 	function add_filter( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		global $_test_hooks;
+		if ( ! isset( $_test_hooks['filters'][ $hook ] ) ) {
+			$_test_hooks['filters'][ $hook ] = array();
+		}
+		$_test_hooks['filters'][ $hook ][] = array(
+			'callback' => $callback,
+			'priority' => $priority,
+			'accepted_args' => $accepted_args
+		);
 		return true;
 	}
 }
 
 if ( ! function_exists( 'has_action' ) ) {
-	function has_action( $hook ) {
+	function has_action( $hook, $callback = false ) {
+		global $_test_hooks;
+		if ( ! isset( $_test_hooks['actions'][ $hook ] ) ) {
+			return false;
+		}
+		if ( $callback === false ) {
+			return ! empty( $_test_hooks['actions'][ $hook ] );
+		}
+		foreach ( $_test_hooks['actions'][ $hook ] as $action ) {
+			if ( $action['callback'] === $callback ) {
+				return $action['priority'];
+			}
+		}
 		return false;
 	}
 }
 
 if ( ! function_exists( 'has_filter' ) ) {
-	function has_filter( $hook ) {
+	function has_filter( $hook, $callback = false ) {
+		global $_test_hooks;
+		if ( ! isset( $_test_hooks['filters'][ $hook ] ) ) {
+			return false;
+		}
+		if ( $callback === false ) {
+			return ! empty( $_test_hooks['filters'][ $hook ] );
+		}
+		foreach ( $_test_hooks['filters'][ $hook ] as $filter ) {
+			if ( $filter['callback'] === $callback ) {
+				return $filter['priority'];
+			}
+		}
 		return false;
 	}
 }
@@ -168,12 +234,28 @@ if ( ! function_exists( 'delete_post_meta' ) ) {
 
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( $hook, $value, ...$args ) {
+		global $_test_hooks;
+		if ( isset( $_test_hooks['filters'][ $hook ] ) ) {
+			foreach ( $_test_hooks['filters'][ $hook ] as $filter ) {
+				if ( is_callable( $filter['callback'] ) ) {
+					$value = call_user_func_array( $filter['callback'], array_merge( array( $value ), $args ) );
+				}
+			}
+		}
 		return $value;
 	}
 }
 
 if ( ! function_exists( 'do_action' ) ) {
 	function do_action( $hook, ...$args ) {
+		global $_test_hooks;
+		if ( isset( $_test_hooks['actions'][ $hook ] ) ) {
+			foreach ( $_test_hooks['actions'][ $hook ] as $action ) {
+				if ( is_callable( $action['callback'] ) ) {
+					call_user_func_array( $action['callback'], $args );
+				}
+			}
+		}
 		return null;
 	}
 }
@@ -204,6 +286,71 @@ if ( ! function_exists( 'delete_option' ) ) {
 if ( ! function_exists( 'sanitize_text_field' ) ) {
 	function sanitize_text_field( $str ) {
 		return trim( strip_tags( $str ) );
+	}
+}
+
+if ( ! function_exists( 'maybe_unserialize' ) ) {
+	function maybe_unserialize( $data ) {
+		if ( is_serialized( $data ) ) {
+			return @unserialize( trim( $data ) );
+		}
+		return $data;
+	}
+}
+
+if ( ! function_exists( 'is_serialized' ) ) {
+	function is_serialized( $data, $strict = true ) {
+		if ( ! is_string( $data ) ) {
+			return false;
+		}
+		$data = trim( $data );
+		if ( 'N;' === $data ) {
+			return true;
+		}
+		if ( strlen( $data ) < 4 ) {
+			return false;
+		}
+		if ( ':' !== $data[1] ) {
+			return false;
+		}
+		if ( $strict ) {
+			$lastc = substr( $data, -1 );
+			if ( ';' !== $lastc && '}' !== $lastc ) {
+				return false;
+			}
+		} else {
+			$semicolon = strpos( $data, ';' );
+			$brace     = strpos( $data, '}' );
+			if ( false === $semicolon && false === $brace ) {
+				return false;
+			}
+			if ( false !== $semicolon && $semicolon < 3 ) {
+				return false;
+			}
+			if ( false !== $brace && $brace < 4 ) {
+				return false;
+			}
+		}
+		$token = $data[0];
+		switch ( $token ) {
+			case 's':
+				if ( $strict ) {
+					if ( '"' !== substr( $data, -2, 1 ) ) {
+						return false;
+					}
+				} elseif ( false === strpos( $data, '"' ) ) {
+					return false;
+				}
+			case 'a':
+			case 'O':
+				return (bool) preg_match( "/^{$token}:[0-9]+:/s", $data );
+			case 'b':
+			case 'i':
+			case 'd':
+				$end = $strict ? '$' : '';
+				return (bool) preg_match( "/^{$token}:[0-9.E+-]+;$end/", $data );
+		}
+		return false;
 	}
 }
 
@@ -257,6 +404,10 @@ if ( ! function_exists( 'esc_attr__' ) ) {
 
 if ( ! function_exists( 'is_admin' ) ) {
 	function is_admin() {
+		global $current_screen;
+		if ( isset( $current_screen ) && is_object( $current_screen ) ) {
+			return true; // If screen is set, we're in admin
+		}
 		return false;
 	}
 }
@@ -279,9 +430,33 @@ if ( ! function_exists( 'wp_doing_ajax' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_doing_cron' ) ) {
+	function wp_doing_cron() {
+		return defined( 'DOING_CRON' ) && DOING_CRON;
+	}
+}
+
+if ( ! function_exists( 'is_user_logged_in' ) ) {
+	function is_user_logged_in() {
+		return false; // Not logged in by default in tests
+	}
+}
+
 if ( ! function_exists( 'current_user_can' ) ) {
 	function current_user_can( $capability ) {
 		return true;
+	}
+}
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	function get_current_user_id() {
+		return 0; // No user by default in tests
+	}
+}
+
+if ( ! function_exists( 'wp_get_current_user' ) ) {
+	function wp_get_current_user() {
+		return (object) array( 'ID' => 0, 'user_login' => '', 'roles' => array() );
 	}
 }
 
@@ -317,7 +492,57 @@ if ( ! function_exists( 'delete_transient' ) ) {
 
 if ( ! function_exists( 'get_posts' ) ) {
 	function get_posts( $args = array() ) {
-		return array(); // Return empty array for tests
+		global $_test_posts;
+		if ( ! isset( $_test_posts ) ) {
+			return array();
+		}
+
+		$results = array();
+		foreach ( $_test_posts as $post ) {
+			$match = true;
+
+			// Filter by post_type
+			if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+				$match = false;
+			}
+
+			// Filter by name (slug)
+			if ( isset( $args['name'] ) && $post->post_name !== $args['name'] ) {
+				$match = false;
+			}
+
+			// Filter by post_status
+			if ( isset( $args['post_status'] ) && $post->post_status !== $args['post_status'] ) {
+				$match = false;
+			}
+
+			if ( $match ) {
+				$results[] = $post;
+			}
+		}
+
+		// Apply limit
+		if ( isset( $args['posts_per_page'] ) && $args['posts_per_page'] > 0 ) {
+			$results = array_slice( $results, 0, $args['posts_per_page'] );
+		}
+
+		return $results;
+	}
+}
+
+if ( ! function_exists( 'wp_delete_post' ) ) {
+	function wp_delete_post( $post_id, $force_delete = false ) {
+		global $_test_posts, $_test_post_meta;
+		foreach ( $_test_posts as $key => $post ) {
+			if ( $post->ID === $post_id ) {
+				unset( $_test_posts[ $key ] );
+				if ( isset( $_test_post_meta[ $post_id ] ) ) {
+					unset( $_test_post_meta[ $post_id ] );
+				}
+				return $post;
+			}
+		}
+		return false;
 	}
 }
 
@@ -374,12 +599,17 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public $query_vars = array();
 		public $is_admin = false;
 		public $is_main_query = true;
+		public $is_archive = false;
+		public $is_home = false;
+		public $is_search = false;
 
 		public function __construct( $args = array() ) {
 			$this->query_vars = $args;
+			// Set is_admin based on global is_admin() function
+			$this->is_admin = is_admin();
 		}
 
-		public function get( $var, $default = '' ) {
+		public function get( $var, $default = false ) {
 			return $this->query_vars[ $var ] ?? $default;
 		}
 
@@ -393,6 +623,18 @@ if ( ! class_exists( 'WP_Query' ) ) {
 
 		public function is_main_query() {
 			return $this->is_main_query;
+		}
+
+		public function is_archive() {
+			return $this->is_archive;
+		}
+
+		public function is_home() {
+			return $this->is_home;
+		}
+
+		public function is_search() {
+			return $this->is_search;
 		}
 	}
 }
@@ -412,7 +654,35 @@ if ( ! isset( $GLOBALS['wpdb'] ) ) {
 		}
 
 		public function get_results( $query, $output = OBJECT ) {
-			// Return empty results for options queries
+			global $_test_options;
+
+			// Check if this is an options query
+			if ( strpos( $query, 'SELECT option_name, option_value' ) !== false ) {
+				// Extract option names from the query
+				// Query format: SELECT option_name, option_value FROM wp_options WHERE option_name IN ('opt1','opt2',...)
+				preg_match_all( "/'([^']+)'/", $query, $matches );
+
+				if ( ! empty( $matches[1] ) ) {
+					$results = array();
+					foreach ( $matches[1] as $option_name ) {
+						if ( isset( $_test_options[ $option_name ] ) ) {
+							$obj = new stdClass();
+							$obj->option_name = $option_name;
+							$obj->option_value = $_test_options[ $option_name ];
+
+							// OBJECT_K means keyed by first column (option_name)
+							if ( $output === OBJECT_K ) {
+								$results[ $option_name ] = $obj;
+							} else {
+								$results[] = $obj;
+							}
+						}
+					}
+					return $results;
+				}
+			}
+
+			// Return empty results for other queries
 			return array();
 		}
 
@@ -445,11 +715,12 @@ if ( ! isset( $GLOBALS['wpdb'] ) ) {
 	global $wpdb;
 }
 
-// Initialize test options, transients, and post meta storage
-global $_test_options, $_test_transients, $_test_post_meta;
+// Initialize test options, transients, post meta, and posts storage
+global $_test_options, $_test_transients, $_test_post_meta, $_test_posts;
 $_test_options = array();
 $_test_transients = array();
 $_test_post_meta = array();
+$_test_posts = array();
 
 // Load plugin files
 require_once dirname( __DIR__ ) . '/rcp-content-filter-utility.php';
@@ -467,6 +738,15 @@ if ( class_exists( 'RCP_Content_Filter' ) ) {
 // Load and initialize Loqate class
 if ( file_exists( dirname( __DIR__ ) . '/includes/class-loqate-address-capture.php' ) ) {
 	require_once dirname( __DIR__ ) . '/includes/class-loqate-address-capture.php';
+}
+
+// Mock LearnPress class for testing
+if ( ! class_exists( 'LearnPress' ) ) {
+	class LearnPress {
+		public static function instance() {
+			return new self();
+		}
+	}
 }
 
 // Load and initialize LearnPress fix class
@@ -494,25 +774,76 @@ if ( ! class_exists( 'WP_UnitTestCase' ) ) {
 		public function setUp(): void {
 			parent::setUp();
 
-			// Clear test options, transients, and post meta
-			global $_test_options, $_test_transients, $_test_post_meta;
+			// Clear test options, transients, post meta, posts, and hooks
+			global $_test_options, $_test_transients, $_test_post_meta, $_test_posts, $_test_hooks;
 			$_test_options = array();
 			$_test_transients = array();
 			$_test_post_meta = array();
+			$_test_posts = array();
+			$_test_hooks = array(
+				'actions' => array(),
+				'filters' => array()
+			);
+
+			// Re-initialize plugins after clearing hooks
+			// Call init() directly instead of via action since we just cleared all hooks
+			if ( class_exists( 'RCP_Content_Filter' ) ) {
+				$plugin = RCP_Content_Filter::get_instance();
+				$plugin->init();
+			}
+			if ( class_exists( 'RCF_Loqate_Address_Capture' ) ) {
+				// Reset singleton and re-create to re-register hooks
+				$reflection = new ReflectionClass( 'RCF_Loqate_Address_Capture' );
+				$instance_property = $reflection->getProperty( 'instance' );
+				$instance_property->setAccessible( true );
+				$instance_property->setValue( null, null );
+				$loqate = RCF_Loqate_Address_Capture::get_instance();
+			}
+			if ( class_exists( 'RCF_LearnPress_Elementor_Fix' ) ) {
+				// Reset singleton and re-create to re-register hooks
+				$reflection = new ReflectionClass( 'RCF_LearnPress_Elementor_Fix' );
+				$instance_property = $reflection->getProperty( 'instance' );
+				$instance_property->setAccessible( true );
+				$instance_property->setValue( null, null );
+				$learnpress_fix = RCF_LearnPress_Elementor_Fix::get_instance();
+			}
 
 			// Initialize factory mock with callable objects
 			$this->factory = new class {
 				public $post;
 				public $user;
 				public $term;
+				private static $next_post_id = 100;
 
 				public function __construct() {
 					$this->post = new class {
+						private static $next_id = 100;
+
 						public function create( $args = array() ) {
-							return 123; // Mock post ID
+							global $_test_posts;
+							$post_id = self::$next_id++;
+
+							$post = (object) array(
+								'ID' => $post_id,
+								'post_title' => $args['post_title'] ?? 'Test Post',
+								'post_name' => $args['post_name'] ?? 'test-post-' . $post_id,
+								'post_type' => $args['post_type'] ?? 'post',
+								'post_status' => $args['post_status'] ?? 'publish',
+								'post_content' => $args['post_content'] ?? '',
+							);
+
+							$_test_posts[] = $post;
+							return $post_id;
 						}
 						public function create_and_get( $args = array() ) {
-							return (object) array( 'ID' => 123, 'post_title' => 'Test Post' );
+							global $_test_posts;
+							$post_id = $this->create( $args );
+							foreach ( $_test_posts as $post ) {
+								if ( $post->ID === $post_id ) {
+									return $post;
+								}
+							}
+							return null;
 						}
 					};
 
@@ -536,10 +867,15 @@ if ( ! class_exists( 'WP_UnitTestCase' ) ) {
 		 */
 		public function tearDown(): void {
 			// Clean up
-			global $_test_options, $_test_transients, $_test_post_meta;
+			global $_test_options, $_test_transients, $_test_post_meta, $_test_posts, $_test_hooks;
 			$_test_options = array();
 			$_test_transients = array();
 			$_test_post_meta = array();
+			$_test_posts = array();
+			$_test_hooks = array(
+				'actions' => array(),
+				'filters' => array()
+			);
 			parent::tearDown();
 		}
 	}
