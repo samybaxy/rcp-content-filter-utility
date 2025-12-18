@@ -1,0 +1,133 @@
+/**
+ * RCP Content Filter Admin Styles
+ */
+
+.rcf-settings-wrap {
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.rcf-main-settings {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    padding: 20px;
+}
+
+.rcf-sidebar {
+    width: 300px;
+}
+
+.rcf-info-box {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.rcf-info-box h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #23282d;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.rcf-info-box ul {
+    list-style: disc;
+    margin-left: 20px;
+}
+
+.rcf-info-box li {
+    margin-bottom: 5px;
+    color: #555;
+    font-size: 13px;
+}
+
+.rcf-info-box p {
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.rcf-debug {
+    background: #f9f9f9;
+    border-color: #e5e5e5;
+}
+
+.rcf-debug code {
+    display: block;
+    margin-top: 5px;
+    padding: 5px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.form-table fieldset label {
+    cursor: pointer;
+}
+
+.form-table fieldset label .description {
+    margin-top: 5px;
+    margin-left: 25px;
+    color: #666;
+    font-size: 13px;
+    font-style: normal;
+}
+
+.rcf-post-types-container {
+    background: #f9f9f9;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.rcf-post-type-group {
+    margin-bottom: 20px;
+}
+
+.rcf-post-type-group:last-child {
+    margin-bottom: 0;
+}
+
+.rcf-post-type-group h4 {
+    margin: 0 0 10px 0;
+    color: #23282d;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+.rcf-post-type-group label {
+    padding: 5px 10px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.rcf-post-type-group label:hover {
+    background: #fff;
+}
+
+.rcf-post-type-group label code {
+    background: #e4e4e4;
+    padding: 2px 5px;
+    border-radius: 2px;
+    font-family: Monaco, monospace;
+}
+
+@media screen and (max-width: 782px) {
+    .rcf-settings-wrap {
+        flex-direction: column;
+    }
+
+    .rcf-sidebar {
+        width: 100%;
+    }
+}

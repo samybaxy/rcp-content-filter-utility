@@ -1,0 +1,44 @@
+{
+  "name": "rcp-content-filter-utility",
+  "version": "1.0.39",
+  "description": "Comprehensive WordPress plugin for content filtering, address validation, and e-commerce enhancements",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "wordpress",
+    "plugin",
+    "woocommerce",
+    "restrict-content-pro",
+    "loqate",
+    "affiliate"
+  ],
+  "author": "samybaxy",
+  "license": "GPL-2.0-or-later",
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "assets/js/**/*.js",
+      "admin/js/**/*.js",
+      "!**/node_modules/**",
+      "!**/vendor/**"
+    ],
+    "coverageDirectory": "coverage",
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
+  }
+}

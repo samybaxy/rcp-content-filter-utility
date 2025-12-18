@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Test Coverage
+coverage/
+.phpunit.result.cache
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+debug.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Build files
+*.min.js
+*.min.css
+
+# Package manager locks (optional - uncomment if needed)
+# package-lock.json
+# composer.lock
