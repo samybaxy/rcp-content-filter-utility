@@ -20,6 +20,20 @@ define( 'WP_CONTENT_DIR', dirname( __DIR__, 2 ) );
 define( 'WP_PLUGIN_DIR', dirname( __DIR__, 1 ) );
 define( 'WP_DEBUG', true );
 
+// WordPress database output constants
+define( 'OBJECT', 'OBJECT' );
+define( 'OBJECT_K', 'OBJECT_K' );
+define( 'ARRAY_A', 'ARRAY_A' );
+define( 'ARRAY_N', 'ARRAY_N' );
+
+// WordPress time constants (in seconds)
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'WEEK_IN_SECONDS', 604800 );
+define( 'MONTH_IN_SECONDS', 2592000 );
+define( 'YEAR_IN_SECONDS', 31536000 );
+
 // Plugin constants
 if ( ! defined( 'RCP_FILTER_VERSION' ) ) {
 	define( 'RCP_FILTER_VERSION', '1.0.39' );
@@ -107,6 +121,47 @@ if ( ! function_exists( 'remove_action' ) ) {
 
 if ( ! function_exists( 'remove_filter' ) ) {
 	function remove_filter( $hook, $callback, $priority = 10 ) {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'remove_all_filters' ) ) {
+	function remove_all_filters( $hook, $priority = false ) {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'update_post_meta' ) ) {
+	function update_post_meta( $post_id, $meta_key, $meta_value, $prev_value = '' ) {
+		global $_test_post_meta;
+		if ( ! isset( $_test_post_meta[ $post_id ] ) ) {
+			$_test_post_meta[ $post_id ] = array();
+		}
+		$_test_post_meta[ $post_id ][ $meta_key ] = $meta_value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'get_post_meta' ) ) {
+	function get_post_meta( $post_id, $meta_key = '', $single = false ) {
+		global $_test_post_meta;
+		if ( ! isset( $_test_post_meta[ $post_id ] ) ) {
+			return $single ? '' : array();
+		}
+		if ( $meta_key === '' ) {
+			return $_test_post_meta[ $post_id ];
+		}
+		$value = $_test_post_meta[ $post_id ][ $meta_key ] ?? ( $single ? '' : array() );
+		return $value;
+	}
+}
+
+if ( ! function_exists( 'delete_post_meta' ) ) {
+	function delete_post_meta( $post_id, $meta_key, $meta_value = '' ) {
+		global $_test_post_meta;
+		if ( isset( $_test_post_meta[ $post_id ][ $meta_key ] ) ) {
+			unset( $_test_post_meta[ $post_id ][ $meta_key ] );
+		}
 		return true;
 	}
 }
@@ -206,9 +261,79 @@ if ( ! function_exists( 'is_admin' ) ) {
 	}
 }
 
+if ( ! function_exists( 'is_singular' ) ) {
+	function is_singular( $post_types = '' ) {
+		return false;
+	}
+}
+
+if ( ! function_exists( 'is_checkout' ) ) {
+	function is_checkout() {
+		return false;
+	}
+}
+
+if ( ! function_exists( 'wp_doing_ajax' ) ) {
+	function wp_doing_ajax() {
+		return defined( 'DOING_AJAX' ) && DOING_AJAX;
+	}
+}
+
 if ( ! function_exists( 'current_user_can' ) ) {
 	function current_user_can( $capability ) {
 		return true;
+	}
+}
+
+if ( ! function_exists( 'set_current_screen' ) ) {
+	function set_current_screen( $screen_id ) {
+		global $current_screen;
+		$current_screen = (object) array( 'id' => $screen_id );
+	}
+}
+
+if ( ! function_exists( 'set_transient' ) ) {
+	function set_transient( $transient, $value, $expiration = 0 ) {
+		global $_test_transients;
+		$_test_transients[ $transient ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'get_transient' ) ) {
+	function get_transient( $transient ) {
+		global $_test_transients;
+		return $_test_transients[ $transient ] ?? false;
+	}
+}
+
+if ( ! function_exists( 'delete_transient' ) ) {
+	function delete_transient( $transient ) {
+		global $_test_transients;
+		unset( $_test_transients[ $transient ] );
+		return true;
+	}
+}
+
+if ( ! function_exists( 'get_posts' ) ) {
+	function get_posts( $args = array() ) {
+		return array(); // Return empty array for tests
+	}
+}
+
+if ( ! function_exists( 'wp_verify_nonce' ) ) {
+	function wp_verify_nonce( $nonce, $action = -1 ) {
+		return true; // Always valid for tests
+	}
+}
+
+if ( ! function_exists( 'wp_nonce_field' ) ) {
+	function wp_nonce_field( $action = -1, $name = '_wpnonce', $referer = true, $echo = true ) {
+		$html = '<input type="hidden" name="' . esc_attr( $name ) . '" value="test_nonce" />';
+		if ( $echo ) {
+			echo $html;
+		}
+		return $html;
 	}
 }
 
@@ -248,6 +373,7 @@ if ( ! class_exists( 'WP_Query' ) ) {
 	class WP_Query {
 		public $query_vars = array();
 		public $is_admin = false;
+		public $is_main_query = true;
 
 		public function __construct( $args = array() ) {
 			$this->query_vars = $args;
@@ -264,12 +390,66 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public function is_admin() {
 			return $this->is_admin;
 		}
+
+		public function is_main_query() {
+			return $this->is_main_query;
+		}
 	}
 }
 
-// Initialize test options storage
-global $_test_options;
+// Mock $wpdb global
+if ( ! isset( $GLOBALS['wpdb'] ) ) {
+	class wpdb_mock {
+		public $options;
+		public $prefix = 'wp_';
+
+		public function __construct() {
+			$this->options = 'wp_options';
+		}
+
+		public function prepare( $query, ...$args ) {
+			return vsprintf( str_replace( '%s', "'%s'", str_replace( '%d', '%d', $query ) ), $args );
+		}
+
+		public function get_results( $query, $output = OBJECT ) {
+			// Return empty results for options queries
+			return array();
+		}
+
+		public function get_var( $query, $x = 0, $y = 0 ) {
+			return null;
+		}
+
+		public function get_row( $query, $output = OBJECT, $y = 0 ) {
+			return null;
+		}
+
+		public function query( $query ) {
+			return true;
+		}
+
+		public function insert( $table, $data, $format = null ) {
+			return 1;
+		}
+
+		public function update( $table, $data, $where, $format = null, $where_format = null ) {
+			return 1;
+		}
+
+		public function delete( $table, $where, $where_format = null ) {
+			return 1;
+		}
+	}
+
+	$GLOBALS['wpdb'] = new wpdb_mock();
+	global $wpdb;
+}
+
+// Initialize test options, transients, and post meta storage
+global $_test_options, $_test_transients, $_test_post_meta;
 $_test_options = array();
+$_test_transients = array();
+$_test_post_meta = array();
 
 // Load plugin files
 require_once dirname( __DIR__ ) . '/rcp-content-filter-utility.php';
@@ -302,13 +482,53 @@ if ( ! class_exists( 'WP_UnitTestCase' ) ) {
 	abstract class WP_UnitTestCase extends \PHPUnit\Framework\TestCase {
 
 		/**
+		 * WordPress test factory for creating test data
+		 *
+		 * @var object
+		 */
+		protected $factory;
+
+		/**
 		 * Set up test
 		 */
 		public function setUp(): void {
 			parent::setUp();
-			// Clear test options
-			global $_test_options;
+
+			// Clear test options, transients, and post meta
+			global $_test_options, $_test_transients, $_test_post_meta;
 			$_test_options = array();
+			$_test_transients = array();
+			$_test_post_meta = array();
+
+			// Initialize factory mock with callable objects
+			$this->factory = new class {
+				public $post;
+				public $user;
+				public $term;
+
+				public function __construct() {
+					$this->post = new class {
+						public function create( $args = array() ) {
+							return 123; // Mock post ID
+						}
+						public function create_and_get( $args = array() ) {
+							return (object) array( 'ID' => 123, 'post_title' => 'Test Post' );
+						}
+					};
+
+					$this->user = new class {
+						public function create( $args = array() ) {
+							return 1; // Mock user ID
+						}
+					};
+
+					$this->term = new class {
+						public function create( $args = array() ) {
+							return 456; // Mock term ID
+						}
+					};
+				}
+			};
 		}
 
 		/**
@@ -316,8 +536,10 @@ if ( ! class_exists( 'WP_UnitTestCase' ) ) {
 		 */
 		public function tearDown(): void {
 			// Clean up
-			global $_test_options;
+			global $_test_options, $_test_transients, $_test_post_meta;
 			$_test_options = array();
+			$_test_transients = array();
+			$_test_post_meta = array();
 			parent::tearDown();
 		}
 	}

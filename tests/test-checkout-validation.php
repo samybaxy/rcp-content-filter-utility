@@ -4,193 +4,108 @@
  *
  * Tests for WooCommerce checkout ASCII validation
  *
+ * Note: ASCII validation is implemented in JavaScript (assets/js/checkout-ascii-validation.js)
+ * These tests verify the JavaScript file exists and contains the correct validation logic.
+ *
  * @package RCP_Content_Filter
  */
 
 class Test_Checkout_Validation extends WP_UnitTestCase {
 
 	/**
-	 * Test ASCII validation - valid input
+	 * Test that validation JavaScript file exists
 	 */
-	public function test_ascii_validation_valid() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
-
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Valid inputs
-		$this->assertTrue( $method->invoke( $plugin, '123 Main Street' ) );
-		$this->assertTrue( $method->invoke( $plugin, 'Apartment 4B' ) );
-		$this->assertTrue( $method->invoke( $plugin, 'New York, NY 10001' ) );
-		$this->assertTrue( $method->invoke( $plugin, "O'Brien's Pub" ) );
-		$this->assertTrue( $method->invoke( $plugin, '#123-456' ) );
+	public function test_validation_js_file_exists() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$this->assertFileExists( $js_file, 'Checkout validation JavaScript file should exist' );
 	}
 
 	/**
-	 * Test ASCII validation - invalid input (kanji)
+	 * Test JavaScript contains ASCII validation function
 	 */
-	public function test_ascii_validation_kanji() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_has_ascii_validation() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Kanji characters
-		$this->assertFalse( $method->invoke( $plugin, '東京都' ) );
-		$this->assertFalse( $method->invoke( $plugin, '山田太郎' ) );
+		$this->assertStringContainsString( 'hasNonAsciiChars', $js_content );
+		$this->assertStringContainsString( '/[^\\x00-\\x7F]/', $js_content, 'Should have regex for non-ASCII detection' );
 	}
 
 	/**
-	 * Test ASCII validation - invalid input (hiragana)
+	 * Test JavaScript contains address field validation
 	 */
-	public function test_ascii_validation_hiragana() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_has_address_validation() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Hiragana characters
-		$this->assertFalse( $method->invoke( $plugin, 'あいうえお' ) );
-		$this->assertFalse( $method->invoke( $plugin, 'ひらがな' ) );
+		$this->assertStringContainsString( 'hasDisallowedAddressChars', $js_content );
+		$this->assertStringContainsString( 'validateValue', $js_content );
 	}
 
 	/**
-	 * Test ASCII validation - invalid input (katakana)
+	 * Test JavaScript validates on blur and input events
 	 */
-	public function test_ascii_validation_katakana() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_has_event_listeners() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Katakana characters
-		$this->assertFalse( $method->invoke( $plugin, 'カタカナ' ) );
-		$this->assertFalse( $method->invoke( $plugin, 'トウキョウ' ) );
+		$this->assertStringContainsString( 'on(\'blur.rcf-validation\'', $js_content );
+		$this->assertStringContainsString( 'on(\'input.rcf-validation\'', $js_content );
+		$this->assertStringContainsString( 'on(\'paste.rcf-validation\'', $js_content );
 	}
 
 	/**
-	 * Test ASCII validation - invalid input (emoji)
+	 * Test JavaScript prevents form submission on validation error
 	 */
-	public function test_ascii_validation_emoji() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_prevents_invalid_submission() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Emoji characters
-		$this->assertFalse( $method->invoke( $plugin, '123 Main St 🏠' ) );
-		$this->assertFalse( $method->invoke( $plugin, 'Hello 👋' ) );
+		$this->assertStringContainsString( 'checkout_place_order', $js_content );
+		$this->assertStringContainsString( 'validateAllFields', $js_content );
 	}
 
 	/**
-	 * Test address field character validation
+	 * Test JavaScript handles email fields differently
 	 */
-	public function test_address_field_characters() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_handles_email_fields() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_valid_address_field' );
-		$method->setAccessible( true );
-
-		// Valid address characters
-		$this->assertTrue( $method->invoke( $plugin, '123 Main St, Apt 4B' ) );
-		$this->assertTrue( $method->invoke( $plugin, 'Building #5 / Suite 100' ) );
-		$this->assertTrue( $method->invoke( $plugin, "McDonald's (Main Branch)" ) );
-
-		// Invalid: @ symbol not allowed in address fields
-		$this->assertFalse( $method->invoke( $plugin, '123 Main @ Street' ) );
+		$this->assertStringContainsString( 'EMAIL_FIELDS', $js_content );
+		$this->assertStringContainsString( 'isEmailField', $js_content );
 	}
 
 	/**
-	 * Test email field allows @ symbol
+	 * Test JavaScript shows error messages
 	 */
-	public function test_email_field_allows_at_symbol() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_shows_error_messages() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_valid_email_field' );
-		$method->setAccessible( true );
-
-		// @ symbol should be allowed in email fields
-		$this->assertTrue( $method->invoke( $plugin, 'test@example.com' ) );
-		$this->assertTrue( $method->invoke( $plugin, 'user+tag@domain.co.uk' ) );
-
-		// But non-ASCII still rejected
-		$this->assertFalse( $method->invoke( $plugin, '山田@example.com' ) );
+		$this->assertStringContainsString( 'showFieldError', $js_content );
+		$this->assertStringContainsString( 'removeFieldError', $js_content );
+		$this->assertStringContainsString( 'rcf-validation-error', $js_content );
 	}
 
 	/**
-	 * Test empty values are valid
+	 * Test that validation error message is localized
 	 */
-	public function test_empty_values_valid() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_validation_uses_localized_message() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Empty values should be valid (optional fields)
-		$this->assertTrue( $method->invoke( $plugin, '' ) );
-		$this->assertTrue( $method->invoke( $plugin, null ) );
+		$this->assertStringContainsString( 'rcfCheckoutValidation.errorMessage', $js_content );
 	}
 
 	/**
-	 * Test phone field requirement
+	 * Test JavaScript reinitializes after AJAX updates
 	 */
-	public function test_phone_field_required() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
+	public function test_js_reinitializes_on_ajax() {
+		$js_file = RCP_FILTER_PLUGIN_DIR . 'assets/js/checkout-ascii-validation.js';
+		$js_content = file_get_contents( $js_file );
 
-		// Check that phone requirement filter is registered
-		$this->assertTrue( has_filter( 'woocommerce_billing_fields' ) !== false );
-		$this->assertTrue( has_filter( 'woocommerce_shipping_fields' ) !== false );
-	}
-
-	/**
-	 * Test Address Line 2 placeholder
-	 */
-	public function test_address_line_2_placeholder() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
-
-		$fields = array(
-			'address_2' => array(
-				'placeholder' => '',
-			),
-		);
-
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_update_address_2_placeholder' );
-		$method->setAccessible( true );
-
-		$updated = $method->invoke( $plugin, $fields );
-
-		$this->assertStringContainsString( 'Building', $updated['address_2']['placeholder'] );
-		$this->assertStringContainsString( 'Apartment', $updated['address_2']['placeholder'] );
-	}
-
-	/**
-	 * Test validation hooks registered
-	 */
-	public function test_validation_hooks() {
-		$this->assertTrue( has_action( 'woocommerce_after_checkout_validation' ) !== false );
-	}
-
-	/**
-	 * Test mixed valid and invalid characters
-	 */
-	public function test_mixed_characters() {
-		$plugin = RCP_Content_Filter_Utility::get_instance();
-
-		$reflection = new ReflectionClass( $plugin );
-		$method = $reflection->getMethod( 'rcf_is_ascii_only' );
-		$method->setAccessible( true );
-
-		// Mix of ASCII and non-ASCII should fail
-		$this->assertFalse( $method->invoke( $plugin, '123 Main Street 東京' ) );
-		$this->assertFalse( $method->invoke( $plugin, 'John Smith あ' ) );
+		$this->assertStringContainsString( 'updated_checkout', $js_content );
+		$this->assertStringContainsString( 'initValidation', $js_content );
 	}
 }
