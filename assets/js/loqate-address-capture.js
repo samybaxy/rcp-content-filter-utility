@@ -9,7 +9,7 @@
  * - Country context handling for accurate autocomplete
  *
  * @since 1.0.25
- * @updated 1.0.38 - SubBuilding extraction, performance optimizations, debouncing
+ * @updated 1.0.43 - Fixed Loqate re-initialization after address selection (production ready)
  */
 
 ;(function($, window) {
@@ -272,7 +272,8 @@
 			this[countryVarName] = currentCountry;
 
 			try {
-				// Create Loqate control
+	
+			// Create Loqate control
 				this[controlName] = new pca.Address(fieldControls, controlConfig);
 
 				// Attach event listeners
@@ -383,10 +384,12 @@
 					clearInterval(checkDropdownInterval);
 				}
 
-				// CRITICAL: Close all Loqate dropdowns
+	
+			// CRITICAL: Close all Loqate dropdowns
 				self.closeAllLoqateDropdowns();
 
-				// Manually populate all fields
+	
+			// Manually populate all fields
 				self.populateAddressFields(address, fields, type);
 
 				// Trigger WooCommerce update to recalculate shipping/taxes
@@ -396,6 +399,12 @@
 
 				// Show success feedback
 				self.showFieldFeedback(fields.search, 'success', 'Address found');
+
+			// Re-initialize the control after a short delay to ensure it's ready for new searches
+			setTimeout(function() {
+				self.reinitializeControlAfterSelection(type);
+			}, 500);
+
 			});
 
 			// On error (API request failed)
@@ -515,6 +524,43 @@
 				}, 100);
 			}, 150);
 		},
+
+	/**
+	 * Reinitialize control after address selection to allow new searches
+	 * Similar to reinitializeAddressCapture but without clearing field values
+	 */
+	reinitializeControlAfterSelection: function(type) {
+		var isBilling = type === 'billing';
+		var controlName = type + 'Control';
+
+		var fields = isBilling ? this.config.billingAddressFields : this.config.shippingAddressFields;
+		var $searchField = $('#' + fields.search);
+
+		// Clean up dropdown DOM elements
+		$searchField.closest('.form-row, .form-group').find('.pcaautocomplete, .pca.pcalist, .pcatext').remove();
+
+		// Unload existing control
+		if (this[controlName] && typeof this[controlName].unload === 'function') {
+			try {
+				this[controlName].unload();
+			} catch (e) {
+				console.warn('[Loqate] Error unloading ' + type + ' control for re-initialization', e);
+			}
+		}
+
+		// Clear control instance and flags to allow reinitialize
+		this[controlName] = null;
+		this['isInitializing' + (isBilling ? 'Billing' : 'Shipping')] = false;
+
+		// Clean up any orphaned Loqate DOM elements
+		$searchField.closest('.form-row, .form-group').find('.pcaautocomplete, .pca.pcalist, .pcatext').remove();
+
+		// Reinitialize with fresh control (keeps field values intact)
+		var self = this;
+		setTimeout(function() {
+			self.setupAddressCapture(type);
+		}, 100);
+	},
 
 		/**
 		 * Manually populate all address fields
@@ -866,10 +912,11 @@
 			}
 
 			// Remove ALL Loqate dropdown elements synchronously
-			var $allDropdowns = $(
+	
+		var $allDropdowns = $(
 				'.pcaautocomplete, .pca.pcalist, .pcatext, [data-pca], [role="listbox"], [role="option"], [aria-expanded="true"]'
 			);
-			$allDropdowns.remove();
+		$allDropdowns.remove();
 
 			// Trigger escape key on search fields as safety net
 			var $billingSearch = $('#' + this.config.billingAddressFields.search);
