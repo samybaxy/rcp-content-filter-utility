@@ -32,5 +32,5 @@ debug.log
 *.min.css
 
 # Package manager locks (optional - uncomment if needed)
-# package-lock.json
+package-lock.json
 # composer.lock
