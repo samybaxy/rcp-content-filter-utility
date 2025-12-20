@@ -9,7 +9,7 @@
  * - Country context handling for accurate autocomplete
  *
  * @since 1.0.25
- * @updated 1.0.44 - Fixed shipping control initialization when DOM is replaced by WooCommerce AJAX
+ * @updated 1.0.45 - Removed unnecessary console logs, keeping only errors and warnings
  */
 
 ;(function($, window) {
@@ -120,7 +120,6 @@
 
 			// Log API key status (masked for security)
 			var maskedKey = this.config.apiKey.substring(0, 4) + '****' + this.config.apiKey.substring(this.config.apiKey.length - 4);
-			console.log('[Loqate] Environment validated - SDK loaded, API key: ' + maskedKey);
 			return true;
 		},
 
@@ -255,7 +254,6 @@
 				return;
 			} else {
 				// DOM was replaced, unload the stale control
-				console.log('[Loqate] ' + type + ' control exists but DOM was replaced, re-initializing...');
 				if (typeof this[controlName].unload === 'function') {
 					try {
 						this[controlName].unload();
@@ -300,7 +298,6 @@
 				// Attach event listeners
 				this.attachAddressListeners(this[controlName], fields, type);
 
-				console.log('[Loqate] Initialized - ' + type + ' address capture ready');
 			} catch (error) {
 				console.error('[Loqate] Failed to initialize ' + type + ' address capture', error);
 				this[controlName] = null;

@@ -3,7 +3,7 @@
  * Plugin Name: RCP Content Filter Utility
  * Plugin URI: https://example.com/
  * Description: Filters out restricted content from post grids based on Restrict Content Pro membership levels
- * Version: 1.0.44
+ * Version: 1.0.45
  * Author: samybaxy
  * Text Domain: rcp-content-filter
  * Domain Path: /languages
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants
 if ( ! defined( 'RCP_FILTER_VERSION' ) ) {
-	define( 'RCP_FILTER_VERSION', '1.0.44' ); // Fixed shipping control initialization with stale DOM detection
+	define( 'RCP_FILTER_VERSION', '1.0.45' ); // Removed unnecessary console logs for production
 }
 if ( ! defined( 'RCP_FILTER_PLUGIN_FILE' ) ) {
 	define( 'RCP_FILTER_PLUGIN_FILE', __FILE__ );
