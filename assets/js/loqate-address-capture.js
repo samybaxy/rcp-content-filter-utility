@@ -9,7 +9,7 @@
  * - Country context handling for accurate autocomplete
  *
  * @since 1.0.25
- * @updated 1.0.43 - Fixed Loqate re-initialization after address selection (production ready)
+ * @updated 1.0.44 - Fixed shipping control initialization when DOM is replaced by WooCommerce AJAX
  */
 
 ;(function($, window) {
@@ -242,10 +242,31 @@
 				return;
 			}
 
-			// Skip if control already exists
-			if (this[controlName]) {
+
+		// Check if control already exists AND its DOM element is still valid
+		// If DOM was replaced (e.g., by WooCommerce AJAX), unload the stale control
+		if (this[controlName]) {
+			// Check if the control's element is still in the DOM
+			var controlElement = this[controlName].element;
+			var elementStillExists = controlElement && document.body.contains(controlElement);
+
+			if (elementStillExists) {
+				// Control exists and DOM is valid, skip re-initialization
 				return;
+			} else {
+				// DOM was replaced, unload the stale control
+				console.log('[Loqate] ' + type + ' control exists but DOM was replaced, re-initializing...');
+				if (typeof this[controlName].unload === 'function') {
+					try {
+						this[controlName].unload();
+					} catch (e) {
+						console.warn('[Loqate] Error unloading stale ' + type + ' control', e);
+					}
+				}
+				this[controlName] = null;
+				this[flagName] = false;
 			}
+		}
 
 			var fields = isBilling ? this.config.billingAddressFields : this.config.shippingAddressFields;
 			var $searchField = $('#' + fields.search);
