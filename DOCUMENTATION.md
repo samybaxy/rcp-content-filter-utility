@@ -1,7 +1,7 @@
 # RCP Content Filter Utility - Complete Documentation
 
-**Version**: 1.0.38
-**Last Updated**: December 11, 2025
+**Version**: 1.0.49
+**Last Updated**: December 26, 2025
 **Author**: samybaxy
 
 ---
@@ -12,26 +12,31 @@
 2. [Installation](#installation)
 3. [Core Features](#core-features)
 4. [Loqate Address Capture Integration](#loqate-address-capture-integration)
-5. [Configuration](#configuration)
-6. [Testing & Troubleshooting](#testing--troubleshooting)
-7. [Advanced Customization](#advanced-customization)
-8. [Changelog](#changelog)
+5. [Transliteration](#transliteration)
+6. [Configuration](#configuration)
+7. [Testing & Troubleshooting](#testing--troubleshooting)
+8. [Advanced Customization](#advanced-customization)
+9. [Changelog](#changelog)
 
 ---
 
 ## Plugin Overview
 
-RCP Content Filter Utility is a comprehensive WordPress plugin that extends Restrict Content Pro, WooCommerce, AffiliateWP, and LearnPress functionality with several key features:
+RCP Content Filter Utility is a comprehensive WordPress plugin that extends Restrict Content Pro, WooCommerce, AffiliateWP, and LearnPress functionality with 11 major features:
 
 ### Key Capabilities
 
 ✓ **Content Filtering** - Automatically filters restricted content from WordPress queries
-✓ **Loqate Address Capture** - Real-time address autocomplete for 245+ countries
+✓ **Loqate Address Capture** - Real-time address autocomplete for 245+ countries with transliteration
 ✓ **Email & Phone Validation** - Validate customer contact information
 ✓ **Partner+ Auto-Affiliate** - Automatic affiliate account creation on purchase
 ✓ **LearnPress Integration** - Fixes Elementor template loading in course context
 ✓ **Checkout Validation** - ASCII-only character enforcement for international shipping
 ✓ **DNA Kit Tracking** - Captures serial IDs from shipment tracking
+✓ **AffiliateWP Enhancements** - Form streamlining and referral safety
+✓ **Password Reset Fix** - WP Engine LinkShield bypass
+✓ **Stripe Migration** - Bulk customer ID updates
+✓ **Shipping Address Control** - Smart checkbox management
 
 ---
 
@@ -43,6 +48,13 @@ RCP Content Filter Utility is a comprehensive WordPress plugin that extends Rest
 - PHP 8.2+
 - WooCommerce 7.0+ (for checkout features)
 - Restrict Content Pro (for content filtering)
+
+### Optional Dependencies
+
+- **AffiliateWP** 2.0+ (for auto-affiliate, form enhancement, referral safety)
+- **LearnPress** 4.0+ (for course context fix)
+- **Elementor** (for LearnPress template fix)
+- **Advanced Shipment Tracking** (for DNA kit capture)
 
 ### Setup Steps
 
@@ -65,6 +77,8 @@ Automatically filters restricted content from archives and post grids based on R
 - LearnPress courses/lessons
 
 **Configuration:** Restrict Content Pro → Content Filter → Content Filter Settings
+
+---
 
 ### 2. Partner+ Auto-Affiliate Activation
 
@@ -93,6 +107,8 @@ Automatically creates affiliate accounts when customers purchase the Partner+ pr
 - Product slug must be `partner-plus` (or configure via filter)
 - Product status must be "Publish"
 
+---
+
 ### 3. AffiliateWP Registration Form Enhancement
 
 Streamlines the affiliate registration form by auto-populating and hiding unnecessary fields.
@@ -108,6 +124,8 @@ Streamlines the affiliate registration form by auto-populating and hiding unnece
 **Always Hidden:**
 - Website URL (optional field)
 - How will you promote us? (not required)
+
+---
 
 ### 4. LearnPress + Thim Elementor Fix
 
@@ -127,6 +145,7 @@ Loqate provides real-time address capture and validation:
 - Supports 245+ countries
 - Provides email and phone validation
 - Uses geolocation for smart suggestions
+- **Transliterates non-Latin scripts** to romanized output
 
 ### Quick Start (5 Minutes)
 
@@ -165,9 +184,10 @@ add_filter( 'rcf_loqate_api_key', function() {
 
 ### Features Implemented
 
-#### Address Capture (v1.0.38 Enhanced)
+#### Address Capture (v1.0.49 Optimized)
 ✓ Real-time autocomplete for billing address
 ✓ Real-time autocomplete for shipping address
+✓ **Transliteration** - Converts kanji, cyrillic, arabic, etc. to romanized output
 ✓ **SubBuilding/Apt/Suite Extraction** - Automatically extracts apartment, suite, unit numbers to Address Line 2
 ✓ **Performance Optimizations** - Cached DOM elements, batched DB queries, lazy shipping initialization
 ✓ **Extended Country Support** - 60+ countries with fallback code mapping
@@ -188,6 +208,61 @@ add_filter( 'rcf_loqate_api_key', function() {
 ✓ Geolocation options (enable, radius, max items)
 ✓ Validation service toggles
 ✓ Custom field mapping via filters
+
+---
+
+## Transliteration
+
+### Overview
+
+The Loqate integration includes automatic transliteration for international addresses. This converts addresses written in non-Latin scripts (kanji, cyrillic, arabic, etc.) into romanized/Latin output that's compatible with WooCommerce and international shipping.
+
+### How It Works
+
+**Core Configuration:**
+```javascript
+languagePreference: 'eng'  // Force romanized/Latin output
+options: {
+    OutputScript: 'Latn'    // Force Latin/romanized output
+}
+```
+
+**Critical Design:**
+- The `culture` parameter is **NOT set** for transliteration countries
+- Loqate auto-detects input script (kanji, cyrillic, arabic, thai, etc.)
+- Returns results in **LATIN/ROMANIZED** format automatically
+- Works for: Address Line 1, Line 2, City, State/Province, all components
+
+### Supported Transliteration Countries
+
+| Country | Script | Example Input | Example Output |
+|---------|--------|---------------|----------------|
+| 🇯🇵 Japan | Kanji/Kana | 東京都港区 | Tokyo, Minato-Ku |
+| 🇨🇳 China | Chinese | 北京市朝阳区 | Beijing, Chaoyang |
+| 🇹🇼 Taiwan | Chinese | 台北市 | Taipei |
+| 🇰🇷 Korea | Hangul | 서울특별시 | Seoul |
+| 🇷🇺 Russia | Cyrillic | Москва | Moskva |
+| 🇬🇷 Greece | Greek | Αθήνα | Athina |
+| 🇮🇱 Israel | Hebrew | תל אביב | Tel Aviv |
+| 🇸🇦 Saudi Arabia | Arabic | الرياض | Riyadh |
+| 🇹🇭 Thailand | Thai | กรุงเทพมหานคร | Bangkok |
+
+### UI Localization (Non-Transliteration)
+
+For countries already using Latin script, culture codes provide UI localization only:
+- 🇫🇷 France, 🇩🇪 Germany, 🇪🇸 Spain, 🇮🇹 Italy
+- 🇵🇹 Portugal, 🇳🇱 Netherlands, 🇵🇱 Poland, 🇧🇷 Brazil
+
+### Testing Transliteration
+
+1. Set country to **Japan**
+2. Type in address field: `東京都港区` (Tokyo, Minato in kanji)
+3. Select suggestion from dropdown
+4. **Expected Result:**
+   - Line 1: `1-7-1 Konan` (romanized)
+   - City: `Minato-Ku` (romanized)
+   - State: `Tokyo` (romanized, NOT 東京都)
+   - Postal: `108-0075`
 
 ---
 
@@ -272,7 +347,7 @@ add_filter( 'rcf_loqate_billing_field_mapping', function( $fields ) {
 **Verify Version:**
 1. Right-click on checkout page → View Page Source
 2. Search for: `loqate-address-capture.js`
-3. Must show: `?ver=1.0.18` ✅
+3. Must show: `?ver=1.0.49` ✅
 
 #### Step 2: Check Console for Initialization
 
@@ -283,13 +358,12 @@ add_filter( 'rcf_loqate_billing_field_mapping', function( $fields ) {
 
 **Expected Console Output (WITH API Key):**
 ```javascript
-[Loqate] Billing address capture initialized successfully
-[Loqate] Shipping address capture initialized successfully
+// Minimal logs - only errors/warnings appear
 ```
 
 **WITHOUT API Key:**
 ```javascript
-[Loqate] API key not configured - add LOQATE_API_KEY constant or use admin settings
+[Loqate] API key not configured - check wp-config.php or admin settings
 ```
 
 #### Step 3: Test Address Search
@@ -301,7 +375,14 @@ add_filter( 'rcf_loqate_billing_field_mapping', function( $fields ) {
 4. Click suggestion
 5. **Expected:** All fields auto-fill (city, state, ZIP, country)
 
-**Test Case 2: UK Address**
+**Test Case 2: Japan (Transliteration)**
+1. Change country to **Japan**
+2. Type: `東京都港区` (kanji)
+3. **Expected:** Romanized suggestions (Tokyo, Minato-Ku)
+4. Click suggestion
+5. **Expected:** All fields auto-fill in **romanized/Latin** script
+
+**Test Case 3: UK Address**
 1. Change country to United Kingdom
 2. Type: `10 Downing`
 3. **Expected:** See "10 Downing Street, London"
@@ -333,22 +414,20 @@ add_filter( 'rcf_loqate_billing_field_mapping', function( $fields ) {
 1 Macquarie Street, Sydney NSW 2000
 ```
 
+**Japan (Transliteration):**
+```
+東京都港区 (should return romanized: Tokyo, Minato-Ku)
+```
+
 ### Troubleshooting
 
 #### Error: "Address search error"
-
-This error appears when the Loqate API call fails. Version 1.0.18 includes detailed error logging.
 
 **Step 1: Check Console for Detailed Error**
 
 After hard refresh, console will show:
 ```javascript
-[Loqate] Billing address error: [error object]
-[Loqate] Error details: {
-    message: "...",
-    statusCode: 401,  // or other code
-    ...
-}
+[Loqate] Error - Type: billing, Status: 401, Message: Invalid API key
 ```
 
 **Step 2: Common Error Codes & Fixes**
@@ -401,122 +480,50 @@ After hard refresh, console will show:
 3. Check browser DevTools → Network tab
 4. Try different browser or incognito mode
 
-#### Dropdown Not Visible
+#### State "Tokyo" not found in dropdown options
 
-**Problem:** Console shows searches working, but dropdown doesn't appear on screen
-
-**Solution (Fixed in v1.0.18):**
-The CSS has been updated to properly position the dropdown with:
-- `position: absolute !important`
-- `z-index: 99999 !important`
-- Proper border, shadow, and background styling
-
-If still not visible after updating to 1.0.18:
-1. Hard refresh: `Ctrl+Shift+R` (3 times)
-2. Verify version in page source shows `?ver=1.0.18`
-3. Clear full browser cache (not just hard refresh)
-4. Check for CSS conflicts from other plugins
-
-#### No Dropdown Appears
-
-**Check API Key:**
-```javascript
-// In browser console:
-rcfLoqateConfig.apiKey
-// Expected: "AA11****" (masked key)
+**Symptom:**
+```
+[Loqate] State "Tokyo" not found in dropdown options
 ```
 
-**Check Initialization:**
-```javascript
-// In console:
-window.RCFLoqateAddressCapture
-// Expected: {config: {...}, init: function, ...}
-```
+**Diagnosis:**
+WooCommerce state list may not have romanized state names for the country
 
-**Check SDK Loaded:**
-```javascript
-// In console:
-typeof pca
-// Expected: "object"
-```
+**Fix:**
+This is expected for some countries. The state field will remain empty and can be filled manually if needed.
 
-#### Fields Don't Auto-Fill
+### Staging/Production Debugging
 
-**Check Field IDs:**
-```javascript
-// In console:
-document.getElementById('billing_address_1')
-document.getElementById('billing_city')
-document.getElementById('billing_state')
-document.getElementById('billing_postcode')
-document.getElementById('billing_country')
+If Loqate works on dev but not on staging/production:
 
-// All should return: <input ...> elements
-// If any return null, field ID is wrong
-```
+#### Step 1: Enable Debug Mode
 
-#### Country Doesn't Auto-Select
-
-**Check Country Field:**
-```javascript
-// In console:
-document.getElementById('billing_country').tagName
-// Expected: "SELECT" (dropdown)
-
-document.getElementById('billing_country').options.length
-// Expected: > 0 (has countries)
-```
-
-### Testing Partner+ Auto-Affiliate
-
-#### Step 1: Verify Product Exists
-
-**Via WP-CLI:**
-```bash
-wp post list --post_type=product --name=partner-plus --format=table
-```
-
-**Expected output:**
-```
-ID    post_title              post_name     post_status
-24092 The Partner+ Program    partner-plus  publish
-```
-
-#### Step 2: Enable Debug Logging
-
-Add to `wp-config.php` before `/* That's all, stop editing! */`:
+Add to wp-config.php:
 ```php
 define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
 define( 'WP_DEBUG_DISPLAY', false );
-@ini_set( 'display_errors', 0 );
 ```
 
-#### Step 3: Place Test Order
-
-1. Logout admin → Login as test customer
-2. (Optional) Click affiliate referral link first
-3. Add Partner+ product to cart
-4. Complete checkout
-5. Note order number
-
-#### Step 4: Check Debug Log
+#### Step 2: Check Debug Log
 
 ```bash
-grep "BL Auto Affiliate" wp-content/debug.log | tail -10
+tail -50 wp-content/debug.log | grep Loqate
 ```
 
-**Expected Success:**
-```
-[BL Auto Affiliate] Order #12345: Created affiliate #67 for user #123
-[BL Auto Affiliate] Order #12345: Connected affiliate #67 to parent #45
-[BL Auto Affiliate] Order #12345: Changed role from Partner Plus Pending to Partner Plus
-```
+Look for:
+- `[Loqate] SDK not loaded`
+- `[Loqate] API key not configured`
+- `[Loqate] Failed to initialize`
 
-#### Step 5: Verify in Admin
+#### Step 3: Compare Environments
 
-- **Check Order Notes**: WooCommerce → Orders → [Your order] → Notes
-- **Check Affiliate**: AffiliateWP → Affiliates → Search customer email
+**Check:**
+- API key present in both environments?
+- WooCommerce active in both?
+- Same WooCommerce checkout page ID?
+- Caching differences?
 
 ---
 
@@ -582,6 +589,19 @@ add_filter( 'rcf_loqate_geolocation_options', function( $options ) {
 ---
 
 ## Changelog
+
+### Version 1.0.49 (December 26, 2025)
+- ✅ **OPTIMIZED**: Removed verbose console logging (~200 lines removed)
+- ✅ **IMPROVED**: Lean and efficient JavaScript (1,028 lines from ~1,200+)
+- ✅ **IMPROVED**: Faster execution with reduced memory footprint
+- ✅ **IMPROVED**: Production-ready with essential error logging only
+- ✅ **MAINTAINED**: Full transliteration functionality intact
+
+### Version 1.0.48 (December 26, 2025)
+- ✅ **ADDED**: Comprehensive transliteration debug logging
+- ✅ **ADDED**: 6-phase console tracking for transliteration verification
+- ✅ **ADDED**: Detailed field-by-field transliteration confirmation
+- ✅ **IMPROVED**: Enhanced debugging for international addresses
 
 ### Version 1.0.38 (December 11, 2025)
 - ✅ **ADDED**: SubBuilding/Apt/Suite extraction for Address Line 2
@@ -654,10 +674,10 @@ rcp-content-filter-utility/
 │       └── affiliatewp-registration.js     # Form enhancement
 ├── assets/
 │   └── js/
-│       ├── loqate-address-capture.js       # Frontend JavaScript
+│       ├── loqate-address-capture.js       # Frontend JavaScript (1,028 lines)
 │       ├── checkout-ascii-validation.js    # Checkout validation
 │       └── learnpress-next-button-control.js
-├── docs/                                   # Detailed documentation
+├── tests/                                  # Unit tests
 └── DOCUMENTATION.md                        # This file
 ```
 
@@ -667,7 +687,6 @@ rcp-content-filter-utility/
 
 ### Documentation
 - **This File**: Complete reference guide
-- **docs/** folder: Detailed technical documentation
 - **Admin Settings**: Restrict Content Pro → Content Filter
 
 ### External Resources
@@ -694,7 +713,7 @@ rcp-content-filter-utility/
 ### What This Plugin Does
 
 ✅ **Automatic Content Filtering** - Hides restricted posts based on membership
-✅ **Real-Time Address Capture** - 245+ countries with autocomplete
+✅ **Real-Time Address Capture** - 245+ countries with autocomplete & transliteration
 ✅ **Email & Phone Validation** - Verify customer contact information
 ✅ **Affiliate Automation** - Auto-create affiliates on Partner+ purchase
 ✅ **LearnPress Integration** - Fix Elementor templates in course context
@@ -703,10 +722,10 @@ rcp-content-filter-utility/
 
 ### Result
 
-**Seamless, fully automatic functionality with comprehensive address validation and affiliate management!**
+**Seamless, fully automatic functionality with comprehensive address validation, transliteration, and affiliate management!**
 
 ---
 
 **End of Documentation**
-**Version**: 1.0.18
-**Last Updated**: November 27, 2025
+**Version**: 1.0.49
+**Last Updated**: December 26, 2025

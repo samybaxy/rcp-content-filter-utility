@@ -315,7 +315,11 @@
 		getAddressConfig: function(type) {
 			var config = {
 				key: this.config.apiKey,
-				manualEntryItem: this.config.allowManualEntry
+				manualEntryItem: this.config.allowManualEntry,
+				languagePreference: 'eng', // Force romanized/Latin output for transliteration
+				options: {
+					OutputScript: 'Latn' // Force Latin/romanized output (Kanji → Romaji)
+				}
 			};
 
 			// Get current country from the country field
@@ -329,6 +333,41 @@
 				config.countries = {
 					codesList: currentCountry
 				};
+
+				// NOTE: Culture parameter is NOT set for transliteration countries
+				// Loqate's transliteration works automatically:
+				// - Auto-detects input script (e.g., kanji, cyrillic, arabic)
+				// - Searches database in native script
+				// - Returns results in LATIN/ROMANIZED format by default
+				//
+				// Setting culture (e.g., 'ja' for Japan) would return results in NATIVE script,
+				// which breaks WooCommerce state dropdowns that expect romanized names.
+				//
+				// For countries where culture IS useful (UI localization without script change):
+				var cultureCodes = {
+					// Commented out transliteration countries - let Loqate auto-detect
+					// 'JP': 'ja',    // Japan - auto-detects kanji, returns romanized
+					// 'CN': 'zh',    // China - auto-detects Chinese, returns romanized
+					// 'TW': 'zh_TW', // Taiwan - auto-detects Chinese, returns romanized
+					// 'KR': 'ko',    // Korea - auto-detects hangul, returns romanized
+					// 'RU': 'ru',    // Russia - auto-detects Cyrillic, returns romanized
+					// 'GR': 'el',    // Greece - auto-detects Greek, returns romanized
+					// 'IL': 'he',    // Israel - auto-detects Hebrew, returns romanized
+					// 'SA': 'ar',    // Saudi Arabia - auto-detects Arabic, returns romanized
+					// 'TH': 'th',    // Thailand - auto-detects Thai, returns romanized
+					'FR': 'fr',    // France - UI localization
+					'DE': 'de',    // Germany - UI localization
+					'ES': 'es',    // Spain - UI localization
+					'IT': 'it',    // Italy - UI localization
+					'PT': 'pt',    // Portugal - UI localization
+					'NL': 'nl',    // Netherlands - UI localization
+					'PL': 'pl',    // Poland - UI localization
+					'BR': 'pt_BR'  // Brazil - UI localization
+				};
+
+				if (cultureCodes[currentCountry]) {
+					config.culture = cultureCodes[currentCountry];
+				}
 			} else if (this.config.allowedCountries) {
 				// Use configured allowed countries
 				config.countries = {
@@ -402,12 +441,10 @@
 					clearInterval(checkDropdownInterval);
 				}
 
-	
-			// CRITICAL: Close all Loqate dropdowns
+				// CRITICAL: Close all Loqate dropdowns
 				self.closeAllLoqateDropdowns();
 
-	
-			// Manually populate all fields
+				// Manually populate all fields
 				self.populateAddressFields(address, fields, type);
 
 				// Trigger WooCommerce update to recalculate shipping/taxes
@@ -418,11 +455,10 @@
 				// Show success feedback
 				self.showFieldFeedback(fields.search, 'success', 'Address found');
 
-			// Re-initialize the control after a short delay to ensure it's ready for new searches
-			setTimeout(function() {
-				self.reinitializeControlAfterSelection(type);
-			}, 500);
-
+				// Re-initialize the control after a short delay to ensure it's ready for new searches
+				setTimeout(function() {
+					self.reinitializeControlAfterSelection(type);
+				}, 500);
 			});
 
 			// On error (API request failed)
@@ -588,7 +624,7 @@
 		 * - Falls back to Line2 if SubBuilding is empty
 		 * - Combines BuildingName with SubBuilding if both exist
 		 */
-		populateAddressFields: function(address, fields, type) {
+		populateAddressFields: function(address, fields) {
 			var self = this;
 			var stateValue = null;
 
@@ -728,6 +764,7 @@
 					var $options = $field.find('option');
 
 					if ($options.length) {
+						// Try to match the transliterated state name
 						$options.each(function() {
 							var optionText = $(this).text().trim();
 							if (optionText.toLowerCase() === value.toLowerCase()) {

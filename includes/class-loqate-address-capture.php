@@ -85,12 +85,28 @@ class RCF_Loqate_Address_Capture {
 		$this->api_key = $this->get_api_key();
 		$this->enabled = ! empty( $this->api_key );
 
+		// Debug logging for constructor
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( sprintf(
+				'[Loqate Debug] Constructor - API key: %s | Enabled: %s',
+				! empty( $this->api_key ) ? 'SET' : 'NOT SET',
+				$this->enabled ? 'YES' : 'NO'
+			) );
+		}
+
 		if ( ! $this->enabled ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( '[Loqate Debug] Constructor exiting early - No API key found' );
+			}
 			return;
 		}
 
 		// Hook into WooCommerce checkout page
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_loqate_assets' ), 20 );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( '[Loqate Debug] wp_enqueue_scripts hook registered at priority 20' );
+		}
 	}
 
 	/**
@@ -122,11 +138,54 @@ class RCF_Loqate_Address_Capture {
 
 	/**
 	 * Check if we're on the WooCommerce checkout page
+	 * Uses multiple detection methods for reliability with logged-in users
 	 *
 	 * @return bool
 	 */
 	private function is_checkout_page(): bool {
-		return function_exists( 'is_checkout' ) && is_checkout();
+		// Method 1: WooCommerce's is_checkout() function (most reliable when available)
+		if ( function_exists( 'is_checkout' ) && is_checkout() ) {
+			return true;
+		}
+
+		// Method 2: Check global $wp or $wp_query for checkout page
+		global $wp, $wp_query;
+
+		// Check if current page is checkout by checking the query
+		if ( isset( $wp_query->queried_object ) ) {
+			$queried_object = $wp_query->queried_object;
+			if ( isset( $queried_object->post_name ) && $queried_object->post_name === 'checkout' ) {
+				return true;
+			}
+			if ( isset( $queried_object->ID ) && function_exists( 'wc_get_page_id' ) ) {
+				$checkout_page_id = wc_get_page_id( 'checkout' );
+				if ( $checkout_page_id > 0 && $queried_object->ID === $checkout_page_id ) {
+					return true;
+				}
+			}
+		}
+
+		// Method 3: Check request URI for checkout page
+		if ( isset( $_SERVER['REQUEST_URI'] ) ) {
+			$request_uri = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) );
+			// Check if URL contains /checkout or /checkout/
+			if ( preg_match( '#/checkout/?(\?|$|/)#', $request_uri ) ) {
+				return true;
+			}
+		}
+
+		// Method 4: Check pagename query var
+		if ( isset( $wp->query_vars['pagename'] ) && strpos( $wp->query_vars['pagename'], 'checkout' ) !== false ) {
+			return true;
+		}
+
+		// Method 5: Check post_type and name for 'page' and 'checkout'
+		if ( isset( $wp->query_vars['post_type'] ) && $wp->query_vars['post_type'] === 'page'
+		     && isset( $wp->query_vars['name'] ) && $wp->query_vars['name'] === 'checkout' ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -135,9 +194,28 @@ class RCF_Loqate_Address_Capture {
 	 * @return void
 	 */
 	public function enqueue_loqate_assets(): void {
+		// Debug logging for checkout detection
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$is_checkout = $this->is_checkout_page();
+			$user_info = is_user_logged_in() ? 'logged-in (ID: ' . get_current_user_id() . ')' : 'guest';
+			$current_url = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : 'unknown';
+
+			error_log( sprintf(
+				'[Loqate Debug] Enqueue check - Is checkout: %s | User: %s | URL: %s',
+				$is_checkout ? 'YES' : 'NO',
+				$user_info,
+				$current_url
+			) );
+		}
+
 		// Only enqueue on checkout page
 		if ( ! $this->is_checkout_page() ) {
 			return;
+		}
+
+		// Log successful enqueue
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( '[Loqate Debug] Scripts enqueued successfully' );
 		}
 
 		// Enqueue Loqate SDK from CDN
@@ -728,5 +806,90 @@ CSS;
 			'woocommerce'  => class_exists( 'WooCommerce' ),
 			'checkout_url' => function_exists( 'wc_get_checkout_url' ) ? wc_get_checkout_url() : '',
 		);
+	}
+
+	/**
+	 * Debug method to check Loqate initialization and checkout detection
+	 * Can be called via WP-CLI: wp eval "RCF_Loqate_Address_Capture::debug_info();"
+	 *
+	 * @return void
+	 */
+	public static function debug_info(): void {
+		echo "\n=== Loqate Debug Information ===\n\n";
+
+		$instance = self::get_instance();
+
+		// API Key Check
+		echo "1. API Key Status:\n";
+		$api_key_constant = defined( 'LOQATE_API_KEY' ) ? substr( LOQATE_API_KEY, 0, 4 ) . '****' : 'Not set';
+		$api_key_option = get_option( 'rcf_loqate_api_key', '' );
+		$api_key_option_masked = ! empty( $api_key_option ) ? substr( $api_key_option, 0, 4 ) . '****' : 'Not set';
+
+		echo "   - LOQATE_API_KEY constant: $api_key_constant\n";
+		echo "   - rcf_loqate_api_key option: $api_key_option_masked\n";
+		echo "   - Instance has API key: " . ( ! empty( $instance->api_key ) ? 'YES' : 'NO' ) . "\n";
+		echo "   - Instance enabled: " . ( $instance->enabled ? 'YES' : 'NO' ) . "\n\n";
+
+		// Hook Registration Check
+		echo "2. Hook Registration:\n";
+		global $wp_filter;
+		$hook_registered = false;
+		if ( isset( $wp_filter['wp_enqueue_scripts'] ) ) {
+			foreach ( $wp_filter['wp_enqueue_scripts']->callbacks as $priority => $callbacks ) {
+				foreach ( $callbacks as $callback ) {
+					if ( is_array( $callback['function'] ) ) {
+						$obj = $callback['function'][0];
+						$method = $callback['function'][1];
+						if ( is_object( $obj ) && get_class( $obj ) === 'RCF_Loqate_Address_Capture' ) {
+							echo "   - Hook registered at priority $priority: " . get_class( $obj ) . "::$method\n";
+							$hook_registered = true;
+						}
+					}
+				}
+			}
+		}
+		if ( ! $hook_registered ) {
+			echo "   - NO HOOK REGISTERED (wp_enqueue_scripts)\n";
+		}
+		echo "\n";
+
+		// Checkout Detection Check
+		echo "3. Checkout Detection:\n";
+		echo "   - is_checkout() available: " . ( function_exists( 'is_checkout' ) ? 'YES' : 'NO' ) . "\n";
+		if ( function_exists( 'is_checkout' ) ) {
+			echo "   - is_checkout() result: " . ( is_checkout() ? 'TRUE' : 'FALSE' ) . "\n";
+		}
+		if ( function_exists( 'wc_get_page_id' ) ) {
+			$checkout_id = wc_get_page_id( 'checkout' );
+			echo "   - Checkout page ID: $checkout_id\n";
+			echo "   - Current page ID: " . get_the_ID() . "\n";
+		}
+		global $wp, $wp_query;
+		echo "   - Current URL: " . ( isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : 'N/A' ) . "\n";
+		if ( isset( $wp_query->queried_object ) ) {
+			$obj = $wp_query->queried_object;
+			echo "   - Queried object post_name: " . ( isset( $obj->post_name ) ? $obj->post_name : 'N/A' ) . "\n";
+		}
+		echo "\n";
+
+		// User Status
+		echo "4. User Status:\n";
+		echo "   - Logged in: " . ( is_user_logged_in() ? 'YES' : 'NO' ) . "\n";
+		if ( is_user_logged_in() ) {
+			$user = wp_get_current_user();
+			echo "   - User ID: " . $user->ID . "\n";
+			echo "   - User roles: " . implode( ', ', $user->roles ) . "\n";
+		}
+		echo "\n";
+
+		// WooCommerce Status
+		echo "5. WooCommerce Status:\n";
+		echo "   - WooCommerce active: " . ( class_exists( 'WooCommerce' ) ? 'YES' : 'NO' ) . "\n";
+		if ( function_exists( 'wc_get_checkout_url' ) ) {
+			echo "   - Checkout URL: " . wc_get_checkout_url() . "\n";
+		}
+		echo "\n";
+
+		echo "=== End Debug Information ===\n\n";
 	}
 }
