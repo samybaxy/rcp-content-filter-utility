@@ -8,13 +8,8 @@
  * - Email: Valid format (user@domain.com) + ASCII-only
  * - Phone: Valid format (7+ digits) + ASCII-only
  *
- * Visual Feedback:
- * - Red border on invalid fields on blur
- * - Real-time validation during input
- * - Prevents pasting invalid content
- *
  * @since 1.0.0
- * @updated 1.0.55 - Production-ready, optimized code without debug logs
+ * @updated 1.0.54 - Added email/phone format validation with visual feedback on blur
  */
 (function($) {
     'use strict';
@@ -90,7 +85,10 @@
      * Returns true if valid, false if invalid
      */
     function validateValue(value, fieldId) {
+        console.log('[RCF Validation] validateValue() - Field:', fieldId, '- Value:', value);
+
         if (!value) {
+            console.log('[RCF Validation] Empty value - returning true');
             return true; // Empty values are valid (required validation is WooCommerce's job)
         }
 
@@ -98,29 +96,39 @@
         const phoneField = isPhoneField(fieldId);
         const hasNonAscii = hasNonAsciiChars(value);
 
+        console.log('[RCF Validation] Is email:', emailField, '- Is phone:', phoneField, '- Has non-ASCII:', hasNonAscii);
+
         // All fields: reject non-ASCII (kanji, emoji, etc.)
         if (hasNonAscii) {
+            console.log('[RCF Validation] FAIL: Non-ASCII characters detected');
             return false;
         }
 
         // Email fields: validate email format
         if (emailField) {
-            return isValidEmail(value);
+            const validEmail = isValidEmail(value);
+            console.log('[RCF Validation] Email format valid:', validEmail);
+            return validEmail;
         }
 
         // Phone fields: validate phone format
         if (phoneField) {
-            return isValidPhone(value);
+            const validPhone = isValidPhone(value);
+            console.log('[RCF Validation] Phone format valid:', validPhone);
+            return validPhone;
         }
 
         // Other fields: check for disallowed characters (shouldn't reach here for email/phone)
-        return !hasDisallowedAddressChars(value);
+        const hasDisallowed = hasDisallowedAddressChars(value);
+        console.log('[RCF Validation] Has disallowed address chars:', hasDisallowed);
+        return !hasDisallowed;
     }
 
     /**
      * Show validation error for a field
      */
     function showFieldError($field, message) {
+        console.log('[RCF Validation] showFieldError() called for:', $field.attr('id'), '- Message:', message);
         removeFieldError($field);
 
         const $formRow = $field.closest('.form-row');
@@ -138,8 +146,10 @@
 
         const $inputWrapper = $field.closest('.woocommerce-input-wrapper');
         if ($inputWrapper.length) {
+            console.log('[RCF Validation] Adding error message after input wrapper');
             $inputWrapper.after($errorMsg);
         } else {
+            console.log('[RCF Validation] Adding error message after field');
             $field.after($errorMsg);
         }
 
@@ -150,12 +160,15 @@
             'margin-top': '0.5em',
             'font-weight': '600'
         });
+
+        console.log('[RCF Validation] Error styling applied successfully');
     }
 
     /**
      * Remove validation error from a field
      */
     function removeFieldError($field) {
+        console.log('[RCF Validation] removeFieldError() called for:', $field.attr('id'));
         $field.removeClass('rcf-validation-error');
 
         const $formRow = $field.closest('.form-row');
@@ -197,13 +210,18 @@
         const value = $field.val();
         const fieldId = $field.attr('id');
 
+        console.log('[RCF Validation] validateField() - Field:', fieldId, '- Value:', value);
+
         const isValid = validateValue(value, fieldId);
+        console.log('[RCF Validation] validateValue() returned:', isValid);
 
         if (!isValid) {
             const errorMessage = getErrorMessage(fieldId, value);
+            console.log('[RCF Validation] ✗ INVALID - Showing error for:', fieldId, '- Message:', errorMessage);
             showFieldError($field, errorMessage);
             return false;
         } else {
+            console.log('[RCF Validation] ✓ VALID - Removing error for:', fieldId);
             removeFieldError($field);
             return true;
         }
@@ -234,24 +252,36 @@
      * Initialize validation on checkout page
      */
     function initValidation() {
+        console.log('[RCF Validation] initValidation() called');
+
         if (typeof rcfCheckoutValidation === 'undefined') {
+            console.error('[RCF Validation] ERROR: rcfCheckoutValidation is undefined!');
             return;
         }
+
+        let attachedCount = 0;
 
         rcfCheckoutValidation.fieldsToValidate.forEach(function(fieldName) {
             const $field = $('#' + fieldName);
             const shouldValidate = shouldValidateField(fieldName);
 
+            console.log('[RCF Validation] Field:', fieldName, '- Found:', $field.length > 0, '- Should validate:', shouldValidate);
+
             // Only validate email and phone fields - skip address fields for transliteration
             if ($field.length && shouldValidate) {
+                console.log('[RCF Validation] ✓ Attaching validation to:', fieldName);
+                attachedCount++;
+
                 // Validate on blur
                 $field.on('blur.rcf-validation', function() {
+                    console.log('[RCF Validation] Blur event on:', fieldName);
                     validateField($(this));
                 });
 
                 // Real-time validation on input
                 $field.on('input.rcf-validation', function() {
                     const $this = $(this);
+                    console.log('[RCF Validation] Input event on:', fieldName, '- Value:', $this.val());
                     if ($this.val()) {
                         validateField($this);
                     } else {
@@ -271,6 +301,8 @@
                         pastedText = e.originalEvent.clipboardData.getData('text/plain');
                     }
 
+                    console.log('[RCF Validation] Paste event on:', fieldName, '- Content:', pastedText);
+
                     // Check if pasted content is invalid
                     if (pastedText && !validateValue(pastedText, fieldId)) {
                         e.preventDefault();
@@ -285,6 +317,8 @@
             }
         });
 
+        console.log('[RCF Validation] Validation attached to', attachedCount, 'fields');
+
         // Validate before checkout submission
         $(document.body).on('checkout_error', function() {
             validateAllFields();
@@ -297,9 +331,15 @@
 
     // Initialize when DOM is ready
     $(document).ready(function() {
+        console.log('[RCF Validation] Script loaded');
+        console.log('[RCF Validation] rcfCheckoutValidation:', typeof rcfCheckoutValidation !== 'undefined' ? rcfCheckoutValidation : 'UNDEFINED');
+        console.log('[RCF Validation] Fields to validate:', FIELDS_TO_VALIDATE);
+
         if (typeof wc_checkout_params !== 'undefined') {
+            console.log('[RCF Validation] WooCommerce detected, initializing...');
             initValidation();
         } else {
+            console.log('[RCF Validation] WooCommerce not detected, waiting 1s...');
             setTimeout(initValidation, 1000);
         }
     });
