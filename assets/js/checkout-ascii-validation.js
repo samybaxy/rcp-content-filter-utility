@@ -1,22 +1,71 @@
 /**
- * WooCommerce Checkout ASCII-Only Field Validation
+ * WooCommerce Checkout Email & Phone Field Validation
  *
- * Blocks non-ASCII characters (kanji, hiragana, katakana, emoji) from address/name fields.
- * Email fields allow all ASCII including @ symbol.
+ * Validates email and phone fields for proper format and ASCII-only characters.
+ * Address/name/city/state fields are skipped to allow Loqate transliteration.
+ *
+ * Validation:
+ * - Email: Valid format (user@domain.com) + ASCII-only
+ * - Phone: Valid format (7+ digits) + ASCII-only
+ *
+ * Visual Feedback:
+ * - Red border on invalid fields on blur
+ * - Real-time validation during input
+ * - Prevents pasting invalid content
  *
  * @since 1.0.0
+ * @updated 1.0.55 - Production-ready, optimized code without debug logs
  */
 (function($) {
     'use strict';
 
-    // Email fields that allow @ symbol
+    // Email and phone fields that require validation
+    // Address/name/city/state fields are excluded to allow Loqate transliteration
     const EMAIL_FIELDS = ['billing_email', 'shipping_email'];
+    const PHONE_FIELDS = ['billing_phone', 'shipping_phone'];
+    const FIELDS_TO_VALIDATE = [...EMAIL_FIELDS, ...PHONE_FIELDS];
 
     /**
      * Check if field is an email field
      */
     function isEmailField(fieldId) {
         return EMAIL_FIELDS.includes(fieldId);
+    }
+
+    /**
+     * Check if field is a phone field
+     */
+    function isPhoneField(fieldId) {
+        return PHONE_FIELDS.includes(fieldId);
+    }
+
+    /**
+     * Check if field should be validated
+     * Only validate email and phone - skip address fields for transliteration
+     */
+    function shouldValidateField(fieldId) {
+        return FIELDS_TO_VALIDATE.includes(fieldId);
+    }
+
+    /**
+     * Validate email format
+     */
+    function isValidEmail(email) {
+        // Basic email regex - matches most common email formats
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    /**
+     * Validate phone format
+     * Allows: digits, spaces, hyphens, parentheses, plus sign
+     */
+    function isValidPhone(phone) {
+        // Remove spaces, hyphens, parentheses for validation
+        const cleaned = phone.replace(/[\s\-()]/g, '');
+        // Must have at least 7 digits, can start with +
+        const phoneRegex = /^\+?[0-9]{7,}$/;
+        return phoneRegex.test(cleaned);
     }
 
     /**
@@ -42,10 +91,11 @@
      */
     function validateValue(value, fieldId) {
         if (!value) {
-            return true; // Empty values are valid
+            return true; // Empty values are valid (required validation is WooCommerce's job)
         }
 
         const emailField = isEmailField(fieldId);
+        const phoneField = isPhoneField(fieldId);
         const hasNonAscii = hasNonAsciiChars(value);
 
         // All fields: reject non-ASCII (kanji, emoji, etc.)
@@ -53,12 +103,17 @@
             return false;
         }
 
-        // Email fields: only need non-ASCII check, we're done
+        // Email fields: validate email format
         if (emailField) {
-            return true;
+            return isValidEmail(value);
         }
 
-        // Address fields: also check for disallowed characters (like @)
+        // Phone fields: validate phone format
+        if (phoneField) {
+            return isValidPhone(value);
+        }
+
+        // Other fields: check for disallowed characters (shouldn't reach here for email/phone)
         return !hasDisallowedAddressChars(value);
     }
 
@@ -117,14 +172,36 @@
     }
 
     /**
+     * Get appropriate error message for field
+     */
+    function getErrorMessage(fieldId, value) {
+        if (hasNonAsciiChars(value)) {
+            return 'Use Roman/English characters only (A–Z, 0–9). Alternative characters not supported.';
+        }
+
+        if (isEmailField(fieldId)) {
+            return 'Please enter a valid email address.';
+        }
+
+        if (isPhoneField(fieldId)) {
+            return 'Please enter a valid phone number.';
+        }
+
+        return rcfCheckoutValidation.errorMessage;
+    }
+
+    /**
      * Validate a single field
      */
     function validateField($field) {
         const value = $field.val();
         const fieldId = $field.attr('id');
 
-        if (!validateValue(value, fieldId)) {
-            showFieldError($field, rcfCheckoutValidation.errorMessage);
+        const isValid = validateValue(value, fieldId);
+
+        if (!isValid) {
+            const errorMessage = getErrorMessage(fieldId, value);
+            showFieldError($field, errorMessage);
             return false;
         } else {
             removeFieldError($field);
@@ -134,6 +211,7 @@
 
     /**
      * Validate all checkout fields
+     * Only validates email and phone - skips address fields for transliteration
      */
     function validateAllFields() {
         let allValid = true;
@@ -141,7 +219,8 @@
         rcfCheckoutValidation.fieldsToValidate.forEach(function(fieldName) {
             const $field = $('#' + fieldName);
 
-            if ($field.length && $field.val()) {
+            // Only validate email and phone fields
+            if ($field.length && $field.val() && shouldValidateField(fieldName)) {
                 if (!validateField($field)) {
                     allValid = false;
                 }
@@ -155,10 +234,16 @@
      * Initialize validation on checkout page
      */
     function initValidation() {
+        if (typeof rcfCheckoutValidation === 'undefined') {
+            return;
+        }
+
         rcfCheckoutValidation.fieldsToValidate.forEach(function(fieldName) {
             const $field = $('#' + fieldName);
+            const shouldValidate = shouldValidateField(fieldName);
 
-            if ($field.length) {
+            // Only validate email and phone fields - skip address fields for transliteration
+            if ($field.length && shouldValidate) {
                 // Validate on blur
                 $field.on('blur.rcf-validation', function() {
                     validateField($(this));
