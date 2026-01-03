@@ -150,6 +150,10 @@ class RCP_Content_Filter_Admin {
             $this->import_results = $this->process_user_import_csv();
         }
 
+        // Handle AffiliateWP Import CSV upload
+        if ( isset( $_POST['rcf_affiliatewp_import_nonce'] ) && wp_verify_nonce( $_POST['rcf_affiliatewp_import_nonce'], 'rcf_affiliatewp_import' ) ) {
+            $this->process_affiliatewp_import();
+        }
 
         ?>
         <div class="wrap">
@@ -168,6 +172,9 @@ class RCP_Content_Filter_Admin {
                 </a>
                 <a href="?page=rcp-content-filter&tab=user-import" class="nav-tab <?php echo $current_tab === 'user-import' ? 'nav-tab-active' : ''; ?>">
                     <?php _e( 'User Import', 'rcp-content-filter' ); ?>
+                </a>
+                <a href="?page=rcp-content-filter&tab=affiliatewp-import" class="nav-tab <?php echo $current_tab === 'affiliatewp-import' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e( 'AffiliateWP Import', 'rcp-content-filter' ); ?>
                 </a>
             </h2>
 
@@ -439,6 +446,8 @@ class RCP_Content_Filter_Admin {
             <?php $this->render_stripe_migration_tab(); ?>
             <?php elseif ( $current_tab === 'user-import' ) : ?>
             <?php $this->render_user_import_tab(); ?>
+            <?php elseif ( $current_tab === 'affiliatewp-import' ) : ?>
+            <?php $this->render_affiliatewp_import_tab(); ?>
             <?php endif; ?>
         </div>
         <?php
@@ -1869,6 +1878,651 @@ class RCP_Content_Filter_Admin {
             update_option( 'rcf_loqate_validate_phone', 0 );
         }
     }
+
+    // ============================================================
+    // TEMPORARY FEATURE: AffiliateWP Import
+    // Added: 2026-01-03
+    // Purpose: One-time fix for lifetime commission customer links
+    // Safe to delete: All code between these markers
+    // ============================================================
+
+    /**
+     * Render AffiliateWP Import tab
+     *
+     * @since 1.x.x (Temporary Feature)
+     */
+    private function render_affiliatewp_import_tab() {
+        // Handle clear results request
+        if ( isset( $_GET['clear_affwp_import'] ) && wp_verify_nonce( $_GET['_wpnonce'], 'rcf_clear_affwp_import' ) ) {
+            delete_transient( 'rcf_affiliatewp_import_results_' . get_current_user_id() );
+            wp_redirect( admin_url( 'admin.php?page=rcp-content-filter&tab=affiliatewp-import' ) );
+            exit;
+        }
+
+        // Get import results from transient
+        $import_results = get_transient( 'rcf_affiliatewp_import_results_' . get_current_user_id() );
+
+        ?>
+        <div class="rcf-settings-wrap" style="margin-top: 20px;">
+            <div class="rcf-main-settings">
+                <h2><?php _e( 'AffiliateWP Customer-Affiliate Link Import', 'rcp-content-filter' ); ?></h2>
+
+                <!-- Warning Box -->
+                <div class="notice notice-warning inline" style="margin: 20px 0; padding: 15px;">
+                    <h3 style="margin-top: 0;"><?php _e( '⚠️ Important: Database Modification Tool', 'rcp-content-filter' ); ?></h3>
+                    <p><?php _e( 'This tool directly modifies AffiliateWP database tables. Please backup your database before proceeding.', 'rcp-content-filter' ); ?></p>
+                    <p><strong><?php _e( 'Dry run mode (enabled by default) is strongly recommended for first use.', 'rcp-content-filter' ); ?></strong></p>
+                </div>
+
+                <!-- Info Box -->
+                <div class="rcf-info-box">
+                    <h3><?php _e( 'How It Works', 'rcp-content-filter' ); ?></h3>
+                    <ol>
+                        <li><?php _e( 'Upload a CSV file with columns: <code>customer_user_id</code>, <code>affiliate_id</code>, and optionally <code>affiliate_user_id</code>', 'rcp-content-filter' ); ?></li>
+                        <li><?php _e( 'The script fetches WordPress user data (email, first name, last name) for each customer_user_id', 'rcp-content-filter' ); ?></li>
+                        <li><?php _e( 'Creates or updates customer records in <code>affiliate_wp_customers</code> table', 'rcp-content-filter' ); ?></li>
+                        <li><?php _e( 'Links each customer to their affiliate via <code>affiliate_wp_customermeta</code> table', 'rcp-content-filter' ); ?></li>
+                        <li><?php _e( 'Displays detailed results with statistics and error reporting', 'rcp-content-filter' ); ?></li>
+                    </ol>
+                    <p><strong><?php _e( 'CSV Format Example:', 'rcp-content-filter' ); ?></strong></p>
+                    <pre style="background: #f0f0f1; padding: 10px; border-radius: 4px;">customer_user_id,affiliate_id,affiliate_user_id
+123,456,789
+234,456,789
+345,567,890</pre>
+                    <p class="description" style="margin-top: 10px;">
+                        <?php _e( '<strong>customer_user_id</strong>: WordPress user ID of the customer<br>
+                        <strong>affiliate_id</strong>: AffiliateWP affiliate ID to link the customer to<br>
+                        <strong>affiliate_user_id</strong>: (Optional) WordPress user ID of the affiliate', 'rcp-content-filter' ); ?>
+                    </p>
+                </div>
+
+                <!-- Upload Form -->
+                <h3><?php _e( 'Upload CSV File', 'rcp-content-filter' ); ?></h3>
+                <form method="post" enctype="multipart/form-data" action="">
+                    <?php wp_nonce_field( 'rcf_affiliatewp_import', 'rcf_affiliatewp_import_nonce' ); ?>
+
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="affiliatewp_csv"><?php _e( 'CSV File', 'rcp-content-filter' ); ?></label>
+                            </th>
+                            <td>
+                                <input type="file" name="affiliatewp_csv" id="affiliatewp_csv" accept=".csv" required>
+                                <p class="description">
+                                    <?php _e( 'Upload a CSV file with columns:', 'rcp-content-filter' ); ?>
+                                    <code>customer_user_id</code>, <code>affiliate_id</code>, <code>affiliate_user_id</code> (optional)
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="affiliatewp_dry_run"><?php _e( 'Dry Run', 'rcp-content-filter' ); ?></label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="affiliatewp_dry_run" id="affiliatewp_dry_run" value="1" checked>
+                                    <?php _e( 'Preview changes without modifying database (recommended)', 'rcp-content-filter' ); ?>
+                                </label>
+                                <p class="description">
+                                    <?php _e( 'When checked, shows what WOULD be changed without actually making modifications.', 'rcp-content-filter' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p class="submit">
+                        <input type="submit" name="submit_affiliatewp_import" class="button button-primary"
+                               value="<?php esc_attr_e( 'Upload and Process', 'rcp-content-filter' ); ?>">
+                        <?php if ( ! empty( $import_results ) ) : ?>
+                            <a href="<?php echo wp_nonce_url( admin_url( 'admin.php?page=rcp-content-filter&tab=affiliatewp-import&clear_affwp_import=1' ), 'rcf_clear_affwp_import' ); ?>"
+                               class="button"
+                               onclick="return confirm('<?php esc_attr_e( 'Are you sure you want to clear the current results?', 'rcp-content-filter' ); ?>');">
+                                <?php _e( 'Clear Results', 'rcp-content-filter' ); ?>
+                            </a>
+                        <?php endif; ?>
+                    </p>
+                </form>
+
+                <?php
+                // Display results if available
+                if ( ! empty( $import_results ) && is_array( $import_results ) ) {
+                    $this->display_affiliatewp_import_results( $import_results );
+                }
+                ?>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Process AffiliateWP import CSV
+     *
+     * @since 1.x.x (Temporary Feature)
+     */
+    private function process_affiliatewp_import() {
+        // Verify capabilities
+        if ( ! current_user_can( 'manage_options' ) ) {
+            add_settings_error( 'rcf_messages', 'rcf_permission_error',
+                __( 'You do not have permission to perform this action.', 'rcp-content-filter' ), 'error' );
+            return;
+        }
+
+        // Check for file upload
+        if ( ! isset( $_FILES['affiliatewp_csv'] ) || $_FILES['affiliatewp_csv']['error'] !== UPLOAD_ERR_OK ) {
+            add_settings_error( 'rcf_messages', 'rcf_upload_error',
+                __( 'File upload failed. Please try again.', 'rcp-content-filter' ), 'error' );
+            return;
+        }
+
+        // Parse CSV
+        $csv_data = $this->parse_affiliatewp_csv( $_FILES['affiliatewp_csv']['tmp_name'] );
+
+        if ( empty( $csv_data ) ) {
+            // Error messages already added by parser
+            return;
+        }
+
+        // Check dry run mode
+        $dry_run = isset( $_POST['affiliatewp_dry_run'] ) && $_POST['affiliatewp_dry_run'] === '1';
+
+        // Initialize results tracking
+        $results = array(
+            'total_rows'        => count( $csv_data ),
+            'customers_created' => 0,
+            'customers_updated' => 0,
+            'links_created'     => 0,
+            'links_updated'     => 0,
+            'skipped'           => 0,
+            'errors'            => array(),
+            'details'           => array(),
+            'dry_run'           => $dry_run,
+        );
+
+        // Process each row
+        $row_number = 1; // Start from 1 (header is row 0)
+        foreach ( $csv_data as $row ) {
+            $row_number++;
+
+            // Get WordPress user
+            $user = get_user_by( 'id', $row['user_id'] );
+
+            if ( ! $user ) {
+                $results['skipped']++;
+                $results['errors'][] = sprintf(
+                    __( 'Row %d: WordPress user ID %d does not exist', 'rcp-content-filter' ),
+                    $row_number,
+                    $row['user_id']
+                );
+                continue;
+            }
+
+            // Update/create customer record
+            $customer_result = $this->update_customer_record(
+                $row['user_id'],
+                $user->user_email,
+                $user->first_name,
+                $user->last_name,
+                $dry_run
+            );
+
+            if ( is_wp_error( $customer_result ) ) {
+                $results['skipped']++;
+                $results['errors'][] = sprintf(
+                    __( 'Row %d (User ID %d): %s', 'rcp-content-filter' ),
+                    $row_number,
+                    $row['user_id'],
+                    $customer_result->get_error_message()
+                );
+                continue;
+            }
+
+            // Track customer operation (use strpos to handle dry run suffix)
+            if ( strpos( $customer_result['action'], 'created' ) === 0 ) {
+                $results['customers_created']++;
+            } else {
+                $results['customers_updated']++;
+            }
+
+            // Update customer-affiliate link
+            $link_result = $this->update_customer_affiliate_link(
+                $customer_result['customer_id'],
+                $row['affiliate_id'],
+                $dry_run
+            );
+
+            if ( is_wp_error( $link_result ) ) {
+                $results['errors'][] = sprintf(
+                    __( 'Row %d (User ID %d): Failed to link affiliate - %s', 'rcp-content-filter' ),
+                    $row_number,
+                    $row['user_id'],
+                    $link_result->get_error_message()
+                );
+                continue;
+            }
+
+            // Track link operation (use strpos to handle dry run suffix)
+            if ( strpos( $link_result['action'], 'created' ) === 0 ) {
+                $results['links_created']++;
+            } else {
+                $results['links_updated']++;
+            }
+
+            // Add to details (limit to 50 entries to avoid memory issues)
+            if ( count( $results['details'] ) < 50 ) {
+                $results['details'][] = sprintf(
+                    __( 'User ID %d (%s): Customer %s, Link %s', 'rcp-content-filter' ),
+                    $row['user_id'],
+                    $user->user_email,
+                    $customer_result['action'],
+                    $link_result['action']
+                );
+            }
+        }
+
+        // Store results in transient for display
+        set_transient( 'rcf_affiliatewp_import_results_' . get_current_user_id(), $results, HOUR_IN_SECONDS );
+
+        // Add success message
+        $message = $dry_run ? __( 'Dry run complete. No database changes were made.', 'rcp-content-filter' )
+                            : __( 'Import completed successfully!', 'rcp-content-filter' );
+        add_settings_error( 'rcf_messages', 'rcf_import_success', $message, 'success' );
+    }
+
+    /**
+     * Parse AffiliateWP import CSV
+     *
+     * @since 1.x.x (Temporary Feature)
+     * @param string $file_path Path to uploaded CSV file
+     * @return array|false Array of parsed data or false on error
+     */
+    private function parse_affiliatewp_csv( $file_path ) {
+        $data = array();
+        $handle = fopen( $file_path, 'r' );
+
+        if ( $handle === false ) {
+            add_settings_error( 'rcf_messages', 'rcf_csv_open_error',
+                __( 'Unable to open CSV file.', 'rcp-content-filter' ), 'error' );
+            return false;
+        }
+
+        // Read and validate header
+        $headers = fgetcsv( $handle );
+        if ( $headers === false ) {
+            fclose( $handle );
+            add_settings_error( 'rcf_messages', 'rcf_csv_empty',
+                __( 'CSV file is empty or invalid.', 'rcp-content-filter' ), 'error' );
+            return false;
+        }
+
+        // Normalize headers (trim and lowercase)
+        $headers = array_map( function( $header ) {
+            return strtolower( trim( $header ) );
+        }, $headers );
+
+        // Validate required columns (support both 'customer_user_id' and 'user_id' for flexibility)
+        $has_customer_user_id = in_array( 'customer_user_id', $headers );
+        $has_user_id = in_array( 'user_id', $headers );
+        $has_affiliate_id = in_array( 'affiliate_id', $headers );
+
+        if ( ( ! $has_customer_user_id && ! $has_user_id ) || ! $has_affiliate_id ) {
+            fclose( $handle );
+            add_settings_error( 'rcf_messages', 'rcf_csv_missing_columns',
+                __( 'CSV must contain "customer_user_id" (or "user_id") and "affiliate_id" columns.', 'rcp-content-filter' ), 'error' );
+            return false;
+        }
+
+        // Get column indices (prefer customer_user_id over user_id)
+        $user_id_index = $has_customer_user_id
+            ? array_search( 'customer_user_id', $headers )
+            : array_search( 'user_id', $headers );
+        $affiliate_id_index = array_search( 'affiliate_id', $headers );
+
+        // Optional: affiliate_user_id column (for reference, not required)
+        $affiliate_user_id_index = in_array( 'affiliate_user_id', $headers )
+            ? array_search( 'affiliate_user_id', $headers )
+            : false;
+
+        // Parse data rows
+        $invalid_rows = 0;
+        $row_number = 1; // Header is row 1
+
+        while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+            $row_number++;
+
+            // Skip empty rows
+            if ( empty( array_filter( $row ) ) ) {
+                continue;
+            }
+
+            // Validate row has enough columns
+            if ( ! isset( $row[ $user_id_index ] ) || ! isset( $row[ $affiliate_id_index ] ) ) {
+                $invalid_rows++;
+                continue;
+            }
+
+            $user_id = trim( $row[ $user_id_index ] );
+            $affiliate_id = trim( $row[ $affiliate_id_index ] );
+
+            // Validate numeric values
+            if ( ! is_numeric( $user_id ) || ! is_numeric( $affiliate_id ) ) {
+                $invalid_rows++;
+                add_settings_error( 'rcf_messages', 'rcf_csv_invalid_row_' . $row_number,
+                    sprintf( __( 'Row %d: customer_user_id and affiliate_id must be numeric values.', 'rcp-content-filter' ),
+                        $row_number ), 'warning' );
+                continue;
+            }
+
+            // Validate positive values
+            if ( (int) $user_id <= 0 || (int) $affiliate_id <= 0 ) {
+                $invalid_rows++;
+                continue;
+            }
+
+            $data[] = array(
+                'user_id'      => (int) $user_id,
+                'affiliate_id' => (int) $affiliate_id,
+            );
+        }
+
+        fclose( $handle );
+
+        // Report issues
+        if ( $invalid_rows > 0 ) {
+            add_settings_error( 'rcf_messages', 'rcf_csv_invalid',
+                sprintf( __( 'Warning: %d invalid row(s) skipped.', 'rcp-content-filter' ),
+                    $invalid_rows ), 'warning' );
+        }
+
+        if ( empty( $data ) ) {
+            add_settings_error( 'rcf_messages', 'rcf_csv_no_data',
+                __( 'No valid data rows found in CSV.', 'rcp-content-filter' ), 'error' );
+            return false;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Update or create customer record in affiliate_wp_customers
+     *
+     * @since 1.x.x (Temporary Feature)
+     * @param int    $user_id    WordPress user ID
+     * @param string $email      User email
+     * @param string $first_name User first name
+     * @param string $last_name  User last name
+     * @param bool   $dry_run    Preview mode
+     * @return array|WP_Error Array with customer_id and action, or WP_Error on failure
+     */
+    private function update_customer_record( $user_id, $email, $first_name, $last_name, $dry_run = false ) {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'affiliate_wp_customers';
+
+        // Check if customer already exists
+        $existing = $wpdb->get_row( $wpdb->prepare(
+            "SELECT customer_id, date_created FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        ) );
+
+        if ( $dry_run ) {
+            // Dry run mode: just return what would happen
+            if ( $existing ) {
+                return array(
+                    'customer_id' => $existing->customer_id,
+                    'action'      => 'updated (dry run)',
+                );
+            } else {
+                return array(
+                    'customer_id' => 0, // Placeholder for dry run
+                    'action'      => 'created (dry run)',
+                );
+            }
+        }
+
+        if ( $existing ) {
+            // Update existing customer
+            $updated = $wpdb->update(
+                $table_name,
+                array(
+                    'email'      => $email,
+                    'first_name' => $first_name,
+                    'last_name'  => $last_name,
+                ),
+                array( 'user_id' => $user_id ),
+                array( '%s', '%s', '%s' ),
+                array( '%d' )
+            );
+
+            if ( $updated === false ) {
+                return new WP_Error( 'db_update_failed', __( 'Failed to update customer record', 'rcp-content-filter' ) );
+            }
+
+            return array(
+                'customer_id' => $existing->customer_id,
+                'action'      => 'updated',
+            );
+        } else {
+            // Create new customer
+            $inserted = $wpdb->insert(
+                $table_name,
+                array(
+                    'user_id'      => $user_id,
+                    'email'        => $email,
+                    'first_name'   => $first_name,
+                    'last_name'    => $last_name,
+                    'ip'           => '',
+                    'date_created' => current_time( 'mysql' ),
+                ),
+                array( '%d', '%s', '%s', '%s', '%s', '%s' )
+            );
+
+            if ( $inserted === false ) {
+                return new WP_Error( 'db_insert_failed', __( 'Failed to create customer record', 'rcp-content-filter' ) );
+            }
+
+            return array(
+                'customer_id' => $wpdb->insert_id,
+                'action'      => 'created',
+            );
+        }
+    }
+
+    /**
+     * Update or create customer-affiliate link in affiliate_wp_customermeta
+     *
+     * @since 1.x.x (Temporary Feature)
+     * @param int  $customer_id  AffiliateWP customer ID
+     * @param int  $affiliate_id AffiliateWP affiliate ID
+     * @param bool $dry_run      Preview mode
+     * @return array|WP_Error Array with action, or WP_Error on failure
+     */
+    private function update_customer_affiliate_link( $customer_id, $affiliate_id, $dry_run = false ) {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'affiliate_wp_customermeta';
+
+        // Check if link already exists
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT meta_id FROM {$table_name} WHERE affwp_customer_id = %d AND meta_key = 'affiliate_id'",
+            $customer_id
+        ) );
+
+        if ( $dry_run ) {
+            // Dry run mode: just return what would happen
+            if ( $customer_id === 0 ) {
+                // New customer in dry run
+                return array( 'action' => 'created (dry run)' );
+            } elseif ( $existing ) {
+                return array( 'action' => 'updated (dry run)' );
+            } else {
+                return array( 'action' => 'created (dry run)' );
+            }
+        }
+
+        // Skip if this was a dry run customer (customer_id = 0)
+        if ( $customer_id === 0 ) {
+            return new WP_Error( 'invalid_customer', __( 'Invalid customer ID from dry run', 'rcp-content-filter' ) );
+        }
+
+        if ( $existing ) {
+            // Update existing meta
+            $updated = $wpdb->update(
+                $table_name,
+                array( 'meta_value' => $affiliate_id ),
+                array(
+                    'affwp_customer_id' => $customer_id,
+                    'meta_key'          => 'affiliate_id',
+                ),
+                array( '%s' ),
+                array( '%d', '%s' )
+            );
+
+            if ( $updated === false ) {
+                return new WP_Error( 'db_update_failed', __( 'Failed to update affiliate link', 'rcp-content-filter' ) );
+            }
+
+            return array( 'action' => 'updated' );
+        } else {
+            // Create new meta
+            $inserted = $wpdb->insert(
+                $table_name,
+                array(
+                    'affwp_customer_id' => $customer_id,
+                    'meta_key'          => 'affiliate_id',
+                    'meta_value'        => $affiliate_id,
+                ),
+                array( '%d', '%s', '%s' )
+            );
+
+            if ( $inserted === false ) {
+                return new WP_Error( 'db_insert_failed', __( 'Failed to create affiliate link', 'rcp-content-filter' ) );
+            }
+
+            return array( 'action' => 'created' );
+        }
+    }
+
+    /**
+     * Display AffiliateWP import results
+     *
+     * @since 1.x.x (Temporary Feature)
+     * @param array $results Import results data
+     */
+    private function display_affiliatewp_import_results( $results ) {
+        ?>
+        <!-- Summary Statistics -->
+        <div style="background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin: 20px 0; border-radius: 4px;">
+            <h3><?php _e( 'Import Summary', 'rcp-content-filter' ); ?></h3>
+
+            <?php if ( $results['dry_run'] ) : ?>
+                <div class="notice notice-info inline" style="margin: 10px 0;">
+                    <p><strong><?php _e( '🔍 DRY RUN MODE - No database changes were made', 'rcp-content-filter' ); ?></strong></p>
+                </div>
+            <?php endif; ?>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 15px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['total_rows'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Total Rows', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; color: #00a32a; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['customers_created'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Customers Created', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; color: #0073aa; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['customers_updated'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Customers Updated', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; color: #00a32a; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['links_created'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Links Created', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; color: #0073aa; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['links_updated'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Links Updated', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <?php if ( $results['skipped'] > 0 ) : ?>
+                    <div style="text-align: center;">
+                        <div style="font-size: 32px; font-weight: 600; color: #d63638; margin-bottom: 5px;">
+                            <?php echo esc_html( $results['skipped'] ); ?>
+                        </div>
+                        <div style="font-size: 13px; color: #666;">
+                            <?php _e( 'Rows Skipped', 'rcp-content-filter' ); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Details Section -->
+        <?php if ( ! empty( $results['details'] ) ) : ?>
+            <details style="margin: 20px 0;">
+                <summary style="cursor: pointer; font-weight: 600; padding: 10px; background: #f0f0f1; border-radius: 4px;">
+                    <?php printf( __( 'View Processing Details (showing first %d entries)', 'rcp-content-filter' ),
+                        min( count( $results['details'] ), 50 ) ); ?>
+                </summary>
+                <div style="margin-top: 10px; padding: 15px; background: #fff; border: 1px solid #ccd0d4; border-radius: 4px;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        <?php foreach ( $results['details'] as $detail ) : ?>
+                            <li><?php echo esc_html( $detail ); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php if ( $results['total_rows'] > 50 ) : ?>
+                        <p style="margin-top: 10px; font-style: italic; color: #666;">
+                            <?php printf( __( '...and %d more entries', 'rcp-content-filter' ),
+                                $results['total_rows'] - 50 ); ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </details>
+        <?php endif; ?>
+
+        <!-- Errors Section -->
+        <?php if ( ! empty( $results['errors'] ) ) : ?>
+            <details open style="margin: 20px 0;">
+                <summary style="cursor: pointer; font-weight: 600; padding: 10px; background: #fcf0f1; border: 1px solid #d63638; border-radius: 4px; color: #d63638;">
+                    <?php printf( __( '⚠️ Errors (%d)', 'rcp-content-filter' ), count( $results['errors'] ) ); ?>
+                </summary>
+                <div style="margin-top: 10px; padding: 15px; background: #fff; border: 1px solid #d63638; border-radius: 4px;">
+                    <ul style="margin: 0; padding-left: 20px; color: #d63638;">
+                        <?php foreach ( $results['errors'] as $error ) : ?>
+                            <li><?php echo esc_html( $error ); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </details>
+        <?php endif; ?>
+        <?php
+    }
+
+    // ============================================================
+    // END TEMPORARY FEATURE: AffiliateWP Import
+    // ============================================================
 }
 
 /**
