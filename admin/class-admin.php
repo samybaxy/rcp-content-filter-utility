@@ -1922,6 +1922,7 @@ class RCP_Content_Filter_Admin {
                         <li><?php _e( 'The script fetches WordPress user data (email, first name, last name) for each customer_user_id', 'rcp-content-filter' ); ?></li>
                         <li><?php _e( 'Creates or updates customer records in <code>affiliate_wp_customers</code> table', 'rcp-content-filter' ); ?></li>
                         <li><?php _e( 'Links each customer to their affiliate via <code>affiliate_wp_customermeta</code> table', 'rcp-content-filter' ); ?></li>
+                        <li><?php _e( 'Creates lifetime customer records in <code>affiliate_wp_lifetime_customers</code> table (for lifetime commissions)', 'rcp-content-filter' ); ?></li>
                         <li><?php _e( 'Displays detailed results with statistics and error reporting', 'rcp-content-filter' ); ?></li>
                     </ol>
                     <p><strong><?php _e( 'CSV Format Example:', 'rcp-content-filter' ); ?></strong></p>
@@ -2027,15 +2028,17 @@ class RCP_Content_Filter_Admin {
 
         // Initialize results tracking
         $results = array(
-            'total_rows'        => count( $csv_data ),
-            'customers_created' => 0,
-            'customers_updated' => 0,
-            'links_created'     => 0,
-            'links_updated'     => 0,
-            'skipped'           => 0,
-            'errors'            => array(),
-            'details'           => array(),
-            'dry_run'           => $dry_run,
+            'total_rows'              => count( $csv_data ),
+            'customers_created'       => 0,
+            'customers_updated'       => 0,
+            'links_created'           => 0,
+            'links_updated'           => 0,
+            'lifetime_created'        => 0,
+            'lifetime_already_exists' => 0,
+            'skipped'                 => 0,
+            'errors'                  => array(),
+            'details'                 => array(),
+            'dry_run'                 => $dry_run,
         );
 
         // Process each row
@@ -2107,14 +2110,40 @@ class RCP_Content_Filter_Admin {
                 $results['links_updated']++;
             }
 
+            // Step 3: Create lifetime customer record
+            $lifetime_result = $this->update_lifetime_customer_record(
+                $customer_result['customer_id'],
+                $row['affiliate_id'],
+                $dry_run
+            );
+
+            if ( is_wp_error( $lifetime_result ) ) {
+                $results['errors'][] = sprintf(
+                    __( 'Row %d (User ID %d): Failed to create lifetime customer - %s', 'rcp-content-filter' ),
+                    $row_number,
+                    $row['user_id'],
+                    $lifetime_result->get_error_message()
+                );
+                // Continue anyway - customer and link were created successfully
+            } else {
+                // Track lifetime operation
+                if ( strpos( $lifetime_result['action'], 'created' ) === 0 ) {
+                    $results['lifetime_created']++;
+                } else {
+                    $results['lifetime_already_exists']++;
+                }
+            }
+
             // Add to details (limit to 50 entries to avoid memory issues)
             if ( count( $results['details'] ) < 50 ) {
+                $lifetime_action = is_wp_error( $lifetime_result ) ? 'error' : $lifetime_result['action'];
                 $results['details'][] = sprintf(
-                    __( 'User ID %d (%s): Customer %s, Link %s', 'rcp-content-filter' ),
+                    __( 'User ID %d (%s): Customer %s, Link %s, Lifetime %s', 'rcp-content-filter' ),
                     $row['user_id'],
                     $user->user_email,
                     $customer_result['action'],
-                    $link_result['action']
+                    $link_result['action'],
+                    $lifetime_action
                 );
             }
         }
@@ -2339,29 +2368,31 @@ class RCP_Content_Filter_Admin {
     private function update_customer_affiliate_link( $customer_id, $affiliate_id, $dry_run = false ) {
         global $wpdb;
 
+        // Early return for new customers in dry run (no valid customer_id yet)
+        if ( $dry_run && $customer_id === 0 ) {
+            return array( 'action' => 'created (dry run)' );
+        }
+
+        // Validate customer_id for non-dry-run mode
+        if ( $customer_id === 0 ) {
+            return new WP_Error( 'invalid_customer', __( 'Invalid customer ID', 'rcp-content-filter' ) );
+        }
+
         $table_name = $wpdb->prefix . 'affiliate_wp_customermeta';
 
-        // Check if link already exists
+        // Check if link already exists (only runs with valid customer_id)
         $existing = $wpdb->get_var( $wpdb->prepare(
             "SELECT meta_id FROM {$table_name} WHERE affwp_customer_id = %d AND meta_key = 'affiliate_id'",
             $customer_id
         ) );
 
         if ( $dry_run ) {
-            // Dry run mode: just return what would happen
-            if ( $customer_id === 0 ) {
-                // New customer in dry run
-                return array( 'action' => 'created (dry run)' );
-            } elseif ( $existing ) {
+            // Dry run mode with existing customer - can check if link exists
+            if ( $existing ) {
                 return array( 'action' => 'updated (dry run)' );
             } else {
                 return array( 'action' => 'created (dry run)' );
             }
-        }
-
-        // Skip if this was a dry run customer (customer_id = 0)
-        if ( $customer_id === 0 ) {
-            return new WP_Error( 'invalid_customer', __( 'Invalid customer ID from dry run', 'rcp-content-filter' ) );
         }
 
         if ( $existing ) {
@@ -2396,6 +2427,69 @@ class RCP_Content_Filter_Admin {
 
             if ( $inserted === false ) {
                 return new WP_Error( 'db_insert_failed', __( 'Failed to create affiliate link', 'rcp-content-filter' ) );
+            }
+
+            return array( 'action' => 'created' );
+        }
+    }
+
+    /**
+     * Create lifetime customer record in affiliate_wp_lifetime_customers
+     *
+     * @since 1.x.x (Temporary Feature)
+     * @param int  $customer_id  AffiliateWP customer ID
+     * @param int  $affiliate_id AffiliateWP affiliate ID
+     * @param bool $dry_run      Preview mode
+     * @return array|WP_Error Array with action, or WP_Error on failure
+     */
+    private function update_lifetime_customer_record( $customer_id, $affiliate_id, $dry_run = false ) {
+        global $wpdb;
+
+        // Early return for new customers in dry run (no valid customer_id yet)
+        if ( $dry_run && $customer_id === 0 ) {
+            return array( 'action' => 'created (dry run)' );
+        }
+
+        // Validate customer_id for non-dry-run mode
+        if ( $customer_id === 0 ) {
+            return new WP_Error( 'invalid_customer', __( 'Invalid customer ID', 'rcp-content-filter' ) );
+        }
+
+        $table_name = $wpdb->prefix . 'affiliate_wp_lifetime_customers';
+
+        // Check if lifetime customer record already exists (only runs with valid customer_id)
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT lifetime_customer_id FROM {$table_name} WHERE affwp_customer_id = %d AND affiliate_id = %d",
+            $customer_id,
+            $affiliate_id
+        ) );
+
+        if ( $dry_run ) {
+            // Dry run mode with existing customer - can check if lifetime record exists
+            if ( $existing ) {
+                return array( 'action' => 'already exists (dry run)' );
+            } else {
+                return array( 'action' => 'created (dry run)' );
+            }
+        }
+
+        if ( $existing ) {
+            // Record already exists - no need to create again
+            return array( 'action' => 'already exists' );
+        } else {
+            // Create new lifetime customer record
+            $inserted = $wpdb->insert(
+                $table_name,
+                array(
+                    'affwp_customer_id' => $customer_id,
+                    'affiliate_id'      => $affiliate_id,
+                    'date_created'      => current_time( 'mysql' ),
+                ),
+                array( '%d', '%d', '%s' )
+            );
+
+            if ( $inserted === false ) {
+                return new WP_Error( 'db_insert_failed', __( 'Failed to create lifetime customer record', 'rcp-content-filter' ) );
             }
 
             return array( 'action' => 'created' );
@@ -2465,6 +2559,26 @@ class RCP_Content_Filter_Admin {
                         <?php _e( 'Links Updated', 'rcp-content-filter' ); ?>
                     </div>
                 </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; font-weight: 600; color: #00a32a; margin-bottom: 5px;">
+                        <?php echo esc_html( $results['lifetime_created'] ); ?>
+                    </div>
+                    <div style="font-size: 13px; color: #666;">
+                        <?php _e( 'Lifetime Records Created', 'rcp-content-filter' ); ?>
+                    </div>
+                </div>
+
+                <?php if ( $results['lifetime_already_exists'] > 0 ) : ?>
+                    <div style="text-align: center;">
+                        <div style="font-size: 32px; font-weight: 600; color: #0073aa; margin-bottom: 5px;">
+                            <?php echo esc_html( $results['lifetime_already_exists'] ); ?>
+                        </div>
+                        <div style="font-size: 13px; color: #666;">
+                            <?php _e( 'Lifetime Already Existed', 'rcp-content-filter' ); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ( $results['skipped'] > 0 ) : ?>
                     <div style="text-align: center;">
