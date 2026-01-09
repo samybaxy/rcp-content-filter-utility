@@ -3,7 +3,7 @@
  * Plugin Name: RCP Content Filter Utility
  * Plugin URI: https://example.com/
  * Description: Filters out restricted content from post grids based on Restrict Content Pro membership levels
- * Version: 1.0.54
+ * Version: 1.0.55
  * Author: samybaxy
  * Text Domain: rcp-content-filter
  * Domain Path: /languages
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants
 if ( ! defined( 'RCP_FILTER_VERSION' ) ) {
-	define( 'RCP_FILTER_VERSION', '1.0.54' ); // Email & phone format validation with visual error feedback
+	define( 'RCP_FILTER_VERSION', '1.0.55' ); // AffiliateWP payout preview performance optimizer
 }
 if ( ! defined( 'RCP_FILTER_PLUGIN_FILE' ) ) {
 	define( 'RCP_FILTER_PLUGIN_FILE', __FILE__ );
@@ -1801,6 +1801,20 @@ add_action( 'plugins_loaded', function(): void {
 
     // Initialize Loqate integration (singleton)
     RCF_Loqate_Address_Capture::get_instance();
+}, 20 );
+
+// Initialize AffiliateWP Payout Preview Optimizer
+add_action( 'plugins_loaded', function(): void {
+    // Only load if AffiliateWP is active
+    if ( ! function_exists( 'affiliate_wp' ) ) {
+        return;
+    }
+
+    // Load the optimizer class
+    require_once RCP_FILTER_PLUGIN_DIR . 'includes/class-affiliatewp-payout-optimizer.php';
+
+    // Initialize the optimizer (singleton)
+    RCF_AffiliateWP_Payout_Optimizer::get_instance();
 }, 20 );
 
 
