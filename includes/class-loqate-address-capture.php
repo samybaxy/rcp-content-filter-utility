@@ -85,8 +85,8 @@ class RCF_Loqate_Address_Capture {
 		$this->api_key = $this->get_api_key();
 		$this->enabled = ! empty( $this->api_key );
 
-		// Debug logging for constructor
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		// Debug logging for constructor (only when WP_DEBUG_DISPLAY is true)
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_DISPLAY' ) && WP_DEBUG_DISPLAY ) {
 			error_log( sprintf(
 				'[Loqate Debug] Constructor - API key: %s | Enabled: %s',
 				! empty( $this->api_key ) ? 'SET' : 'NOT SET',
@@ -95,7 +95,7 @@ class RCF_Loqate_Address_Capture {
 		}
 
 		if ( ! $this->enabled ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_DISPLAY' ) && WP_DEBUG_DISPLAY ) {
 				error_log( '[Loqate Debug] Constructor exiting early - No API key found' );
 			}
 			return;
@@ -104,7 +104,7 @@ class RCF_Loqate_Address_Capture {
 		// Hook into WooCommerce checkout page
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_loqate_assets' ), 20 );
 
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_DISPLAY' ) && WP_DEBUG_DISPLAY ) {
 			error_log( '[Loqate Debug] wp_enqueue_scripts hook registered at priority 20' );
 		}
 	}
@@ -194,8 +194,8 @@ class RCF_Loqate_Address_Capture {
 	 * @return void
 	 */
 	public function enqueue_loqate_assets(): void {
-		// Debug logging for checkout detection
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		// Debug logging for checkout detection (only when WP_DEBUG_DISPLAY is true)
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_DISPLAY' ) && WP_DEBUG_DISPLAY ) {
 			$is_checkout = $this->is_checkout_page();
 			$user_info = is_user_logged_in() ? 'logged-in (ID: ' . get_current_user_id() . ')' : 'guest';
 			$current_url = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : 'unknown';
@@ -213,8 +213,8 @@ class RCF_Loqate_Address_Capture {
 			return;
 		}
 
-		// Log successful enqueue
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		// Log successful enqueue (only when WP_DEBUG_DISPLAY is true)
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_DISPLAY' ) && WP_DEBUG_DISPLAY ) {
 			error_log( '[Loqate Debug] Scripts enqueued successfully' );
 		}
 
