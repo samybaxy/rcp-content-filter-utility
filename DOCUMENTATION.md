@@ -1,6 +1,6 @@
 # RCP Content Filter Utility - Complete Documentation
 
-**Version**: 1.0.56
+**Version**: 1.0.58
 **Last Updated**: January 11, 2026
 **Author**: samybaxy
 
@@ -621,7 +621,23 @@ add_filter( 'rcf_loqate_geolocation_options', function( $options ) {
 
 ## Changelog
 
-### Version 1.0.56 (January 11, 2026)
+### Version 1.0.58 (January 11, 2026) - STABLE
+- ✅ **FIXED**: JetEngine Profile Builder Flat URLs feature (critical bug fix)
+  - Fixed null post errors that were causing error 500
+  - Added proper WordPress query var registration via `query_vars` filter
+  - Changed rewrite rules to use `pagename` instead of `page_id` for better compatibility
+  - Added `pre_get_posts` hook to force WordPress to load base page post object
+  - Now properly sets query flags (`is_page`, `is_singular`, etc.)
+  - Validates subpage slugs before processing
+  - Feature is now stable and production-ready
+
+### Version 1.0.57 (January 11, 2026) - HOTFIX
+- 🔴 **DISABLED**: Temporarily disabled JetEngine flat URLs feature
+  - Hotfix for error 500 caused by null post errors in JetEngine
+  - Feature was causing `get_post()` to return null for base page
+  - Restored site functionality immediately while developing proper fix
+
+### Version 1.0.56 (January 11, 2026) - BROKEN
 - ✅ **ADDED**: JetEngine Profile Builder Flat URLs feature
   - Automatically removes base path from Profile Builder subpage URLs
   - Converts `/console/academy/` to `/academy/` for cleaner URLs
