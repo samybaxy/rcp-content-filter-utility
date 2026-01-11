@@ -213,6 +213,3 @@ class RCF_JetEngine_Flat_URLs {
 		return $this->base_slug;
 	}
 }
-
-// Initialize
-add_action( 'plugins_loaded', array( RCF_JetEngine_Flat_URLs::class, 'get_instance' ), 20 );
