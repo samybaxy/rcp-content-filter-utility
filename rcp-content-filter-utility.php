@@ -3,7 +3,7 @@
  * Plugin Name: RCP Content Filter Utility
  * Plugin URI: https://example.com/
  * Description: Filters out restricted content from post grids based on Restrict Content Pro membership levels
- * Version: 1.0.61
+ * Version: 1.0.62
  * Author: samybaxy
  * Text Domain: rcp-content-filter
  * Domain Path: /languages
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants
 if ( ! defined( 'RCP_FILTER_VERSION' ) ) {
-	define( 'RCP_FILTER_VERSION', '1.0.61' ); // Simple console/shop redirect
+	define( 'RCP_FILTER_VERSION', '1.0.62' ); // Universal /console/* redirect
 }
 if ( ! defined( 'RCP_FILTER_PLUGIN_FILE' ) ) {
 	define( 'RCP_FILTER_PLUGIN_FILE', __FILE__ );
@@ -1818,18 +1818,36 @@ add_action( 'plugins_loaded', function(): void {
 }, 20 );
 
 /**
- * Simple redirect from /console/shop/ to /shop/ (WooCommerce shop page)
+ * Redirect all /console/* URLs to remove the /console/ base path
  *
- * This catches any URL containing /console/shop/ and redirects to /shop/
+ * Examples:
+ * - /console/shop/ → /shop/
+ * - /console/academy/ → /academy/
+ * - /console/resources/ → /resources/
+ *
+ * This removes the JetEngine Profile Builder base path from URLs.
  */
 add_action( 'template_redirect', function(): void {
 	// Get the current request URI
 	$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
 
-	// Check if the URL contains /console/shop/
-	if ( strpos( $request_uri, '/console/shop' ) !== false ) {
-		// Redirect to /shop/ with 301 permanent redirect
-		wp_safe_redirect( home_url( '/shop/' ), 301 );
+	// Parse the URI to get just the path (without query string)
+	$parsed = parse_url( $request_uri );
+	$path = isset( $parsed['path'] ) ? $parsed['path'] : '';
+
+	// Check if the path starts with /console/
+	if ( strpos( $path, '/console/' ) === 0 ) {
+		// Remove /console/ from the beginning of the path
+		$new_path = substr( $path, 9 ); // strlen('/console/') = 9
+
+		// Preserve query string if present
+		$query_string = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
+
+		// Build the new URL
+		$new_url = home_url( $new_path . $query_string );
+
+		// Redirect with 301 permanent redirect
+		wp_safe_redirect( $new_url, 301 );
 		exit;
 	}
 }, 5 );
