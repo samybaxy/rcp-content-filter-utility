@@ -1,7 +1,7 @@
 # RCP Content Filter Utility - Complete Documentation
 
-**Version**: 1.0.38
-**Last Updated**: December 11, 2025
+**Version**: 1.0.56
+**Last Updated**: January 11, 2026
 **Author**: samybaxy
 
 ---
@@ -32,6 +32,7 @@ RCP Content Filter Utility is a comprehensive WordPress plugin that extends Rest
 ✓ **LearnPress Integration** - Fixes Elementor template loading in course context
 ✓ **Checkout Validation** - ASCII-only character enforcement for international shipping
 ✓ **DNA Kit Tracking** - Captures serial IDs from shipment tracking
+✓ **JetEngine Flat URLs** - Removes base path from Profile Builder subpage URLs
 
 ---
 
@@ -114,6 +115,43 @@ Streamlines the affiliate registration form by auto-populating and hiding unnece
 Fixes Elementor templates not loading on LearnPress course context URLs.
 
 **Enable:** Restrict Content Pro → Content Filter → Enable LearnPress Course Context Fix
+
+### 5. JetEngine Profile Builder Flat URLs
+
+**Status**: ✅ ACTIVE | **Configuration**: ✅ AUTOMATIC (Zero Configuration)
+
+Removes base path from JetEngine Profile Builder subpage URLs for cleaner, SEO-friendly URLs.
+
+**What It Does:**
+- Converts `/console/academy/` → `/academy/`
+- Converts `/console/dashboard/` → `/dashboard/`
+- Converts `/console/settings/` → `/settings/`
+
+**How It Works:**
+1. Hooks into JetEngine Profile Builder rewrite rules
+2. Adds flat URL rewrite rules for all subpages
+3. Modifies Profile Menu widget URLs to use flat structure
+4. Automatically detects base page and all subpages
+5. Flushes rewrite rules on plugin version update
+
+**Benefits:**
+- ✅ Cleaner, more professional URLs
+- ✅ Better SEO (shorter, keyword-focused URLs)
+- ✅ Improved user experience (easier to remember/share)
+- ✅ Fully automatic - works with any JetEngine Profile Builder setup
+- ✅ Domain-agnostic - no hardcoded URLs
+- ✅ Dynamic - adapts when you add/remove subpages
+
+**Technical Details:**
+- Uses `jet-engine/profile-builder/rewrite-rules` filter to add flat rewrite rules
+- Uses `jet-engine/profile-builder/subpage-url` filter to modify menu URLs
+- Automatically flushes rewrite rules once per plugin version
+- No manual configuration or .htaccess edits required
+
+**Compatibility:**
+- Requires JetEngine plugin to be active
+- Works with any JetEngine Profile Builder configuration
+- Compatible with all themes and page builders
 
 ---
 
@@ -582,6 +620,25 @@ add_filter( 'rcf_loqate_geolocation_options', function( $options ) {
 ---
 
 ## Changelog
+
+### Version 1.0.56 (January 11, 2026)
+- ✅ **ADDED**: JetEngine Profile Builder Flat URLs feature
+  - Automatically removes base path from Profile Builder subpage URLs
+  - Converts `/console/academy/` to `/academy/` for cleaner URLs
+  - Uses `jet-engine/profile-builder/rewrite-rules` filter for custom rewrite rules
+  - Uses `jet-engine/profile-builder/subpage-url` filter to modify menu URLs
+  - Fully automatic - zero configuration required
+  - Domain-agnostic and dynamic (adapts to subpage changes)
+  - Better SEO with shorter, keyword-focused URLs
+  - Automatic rewrite rule flushing on version update
+
+### Version 1.0.55 (January 9, 2026)
+- ✅ **ADDED**: AffiliateWP Payout Preview Performance Optimizer
+  - Fixes timeout issues with large datasets (many affiliates, long date ranges)
+  - Batch-loading affiliate names (eliminates expensive JOINs to wp_users)
+  - Pre-warming WordPress object caches to prevent N+1 query patterns
+  - Single optimized query to get unique affiliate IDs
+  - Handles thousands of affiliates without timeout
 
 ### Version 1.0.38 (December 11, 2025)
 - ✅ **ADDED**: SubBuilding/Apt/Suite extraction for Address Line 2

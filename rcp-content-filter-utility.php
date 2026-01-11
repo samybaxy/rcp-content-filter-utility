@@ -3,7 +3,7 @@
  * Plugin Name: RCP Content Filter Utility
  * Plugin URI: https://example.com/
  * Description: Filters out restricted content from post grids based on Restrict Content Pro membership levels
- * Version: 1.0.55
+ * Version: 1.0.56
  * Author: samybaxy
  * Text Domain: rcp-content-filter
  * Domain Path: /languages
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define plugin constants
 if ( ! defined( 'RCP_FILTER_VERSION' ) ) {
-	define( 'RCP_FILTER_VERSION', '1.0.55' ); // AffiliateWP payout preview performance optimizer
+	define( 'RCP_FILTER_VERSION', '1.0.56' ); // JetEngine Profile Builder flat URLs
 }
 if ( ! defined( 'RCP_FILTER_PLUGIN_FILE' ) ) {
 	define( 'RCP_FILTER_PLUGIN_FILE', __FILE__ );
@@ -1815,6 +1815,20 @@ add_action( 'plugins_loaded', function(): void {
 
     // Initialize the optimizer (singleton)
     RCF_AffiliateWP_Payout_Optimizer::get_instance();
+}, 20 );
+
+// Initialize JetEngine Profile Builder Flat URLs
+add_action( 'plugins_loaded', function(): void {
+    // Only load if JetEngine is active
+    if ( ! class_exists( 'Jet_Engine' ) ) {
+        return;
+    }
+
+    // Load the flat URLs class
+    require_once RCP_FILTER_PLUGIN_DIR . 'includes/class-jetengine-flat-urls.php';
+
+    // Initialize automatically (singleton, self-initializing)
+    RCF_JetEngine_Flat_URLs::get_instance();
 }, 20 );
 
 
